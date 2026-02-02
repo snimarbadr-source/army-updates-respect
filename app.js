@@ -10,10 +10,11 @@ const LANES = [
   { id: "paleto", title: "وحدات نقاط شلال بوليتو" },
 ];
 
-/* ---------- 1. نظام السحب المتطور (Placeholder) ---------- */
+/* ---------- نظام التلميح البصري (Placeholder) ---------- */
 let dragging = { cardId: null, fromLane: null };
-let placeholder = document.createElement("div");
-placeholder.className = "unit-placeholder"; // سنعرف شكله في الـ CSS بالأسفل
+// إنشاء عنصر "الخيال" الذي يظهر قبل الإفلات
+const placeholder = document.createElement("div");
+placeholder.className = "unit-placeholder";
 
 function renderBoard() {
   const board = $("#board"); if (!board) return;
@@ -28,33 +29,38 @@ function renderBoard() {
     body.className = "laneBody";
     body.dataset.laneId = lane.id;
 
-    // --- أحداث السحب الحساسة للمكان ---
-    body.ondragover = (e) => {
+    // --- أحداث السحب الحر ---
+    body.addEventListener("dragover", (e) => {
       e.preventDefault();
       body.classList.add("drag-over");
       
-      // إظهار مكان الوحدة قبل الإفلات
+      // تحديد العنصر الذي ستقع الوحدة قبله بناءً على موقع الفأرة
       const afterElement = getDragAfterElement(body, e.clientY);
       if (afterElement == null) {
         body.appendChild(placeholder);
       } else {
         body.insertBefore(placeholder, afterElement);
       }
-    };
+    });
 
-    body.ondragleave = () => {
+    body.addEventListener("dragleave", () => {
       body.classList.remove("drag-over");
-      // لا نحذف الـ placeholder هنا ليبقى التلميح موجوداً طالما السحب مستمر
-    };
+      // لا نحذف الـ placeholder هنا لضمان استمرارية المعاينة
+    });
 
-    body.ondrop = (e) => {
+    body.addEventListener("drop", (e) => {
       e.preventDefault();
       body.classList.remove("drag-over");
-      placeholder.remove(); // حذف التلميح بعد الإفلات
+      
       if (dragging.cardId) {
-        moveCardAtPosition(dragging.cardId, dragging.fromLane, lane.id, placeholder);
+        // حساب الترتيب الجديد بناءً على مكان الـ placeholder
+        const children = [...body.querySelectorAll('.unitCard:not(.dragging)')];
+        const dropIndex = [...body.children].indexOf(placeholder);
+        
+        moveCardToPosition(dragging.cardId, dragging.fromLane, lane.id, dropIndex);
       }
-    };
+      placeholder.remove();
+    });
 
     state.lanes[lane.id].forEach(card => body.appendChild(renderCard(lane.id, card)));
     laneEl.appendChild(body);
@@ -62,7 +68,7 @@ function renderBoard() {
   }
 }
 
-// دالة لتحديد الترتيب (أين ستوضع الوحدة بالضبط)
+// دالة سحرية لحساب أقرب مكان للوحدة أثناء السحب
 function getDragAfterElement(container, y) {
   const draggableElements = [...container.querySelectorAll('.unitCard:not(.dragging)')];
   return draggableElements.reduce((closest, child) => {
@@ -76,22 +82,16 @@ function getDragAfterElement(container, y) {
   }, { offset: Number.NEGATIVE_INFINITY }).element;
 }
 
-/* ---------- 2. تحريك الوحدة لمكانها الجديد ---------- */
-function moveCardAtPosition(id, from, to, placeholderEl) {
+function moveCardToPosition(id, from, to, newIdx) {
   const fromLane = state.lanes[from];
   const toLane = state.lanes[to];
-  const cardIdx = fromLane.findIndex(c => c.id === id);
-  if (cardIdx === -1) return;
+  const oldIdx = fromLane.findIndex(c => c.id === id);
+  if (oldIdx === -1) return;
 
-  const [card] = fromLane.splice(cardIdx, 1);
+  const [card] = fromLane.splice(oldIdx, 1);
   
-  // تحديد موضع الإنزال بناءً على مكان الـ Placeholder
-  const body = document.querySelector(`.laneBody[data-lane-id="${to}"]`);
-  const children = [...body.querySelectorAll('.unitCard')];
-  const dropIdx = children.indexOf(placeholderEl);
-
-  if (dropIdx === -1) toLane.push(card);
-  else toLane.splice(dropIdx, 0, card);
+  // إذا كان النقل في نفس اللوحة، قد يتغير الـ Index بعد المسح
+  toLane.splice(newIdx, 0, card);
 
   saveState();
   renderBoard();
@@ -99,30 +99,30 @@ function moveCardAtPosition(id, from, to, placeholderEl) {
   playSuccessEffect(to);
 }
 
-/* ---------- 3. التنسيق البصري (CSS التفاعلي) ---------- */
+/* ---------- التنسيق البصري للتأثير (CSS) ---------- */
 const style = document.createElement('style');
 style.innerHTML = `
   .unit-placeholder {
-    height: 40px;
-    background: rgba(216, 178, 74, 0.2);
+    height: 44px;
+    background: rgba(216, 178, 74, 0.15);
     border: 2px dashed var(--gold);
     border-radius: 8px;
-    margin: 5px 0;
+    margin: 4px 0;
     pointer-events: none;
     transition: all 0.2s ease;
   }
-  .laneBody.drag-over {
-    background: rgba(216, 178, 74, 0.05) !important;
-  }
   .unitCard.dragging {
-    opacity: 0.3;
-    transform: scale(0.95);
-    border: 1px solid var(--gold);
+    opacity: 0.2;
+    transform: scale(0.98);
+  }
+  .laneBody.drag-over {
+    background: rgba(216, 178, 74, 0.03);
+    border-radius: 0 0 12px 12px;
   }
 `;
 document.head.appendChild(style);
 
-/* ---------- 4. رسم البطاقة وتجهيز السحب ---------- */
+/* ---------- رسم البطاقة ووظائفها ---------- */
 function renderCard(laneId, card) {
   const el = document.createElement("div");
   el.className = "unitCard";
@@ -135,19 +135,18 @@ function renderCard(laneId, card) {
     </div>
   `;
 
-  el.ondragstart = () => {
+  el.addEventListener("dragstart", () => {
     dragging = { cardId: card.id, fromLane: laneId };
     el.classList.add("dragging");
-    // إنشاء حجم الـ placeholder ليطابق حجم الكرت المسحوب
+    // جعل حجم التلميح يطابق حجم الوحدة
     placeholder.style.height = el.offsetHeight + "px";
-  };
+  });
 
-  el.ondragend = () => {
+  el.addEventListener("dragend", () => {
     el.classList.remove("dragging");
     placeholder.remove();
-  };
+  });
 
-  // ربط الأزرار والمدخلات
   const input = el.querySelector(".unitInput");
   input.oninput = () => { card.text = input.value; saveState(); refreshFinalText(); };
   el.querySelector(".move-fast").onclick = () => openQuickMove(card.id, laneId);
@@ -159,7 +158,7 @@ function renderCard(laneId, card) {
   return el;
 }
 
-/* ---------- 5. بناء التقرير النهائي (تنسيق سنمار) ---------- */
+/* ---------- بناء التقرير النهائي (تنسيق سنمار) ---------- */
 function buildReportText() {
   const f = state.form;
   const lines = [];
@@ -193,7 +192,7 @@ function buildReportText() {
   return lines.join("\n");
 }
 
-/* ---------- بقية وظائف النظام ---------- */
+/* ---------- الوظائف المساعدة ---------- */
 function uid() { return (crypto?.randomUUID?.() || ("u_" + Math.random().toString(16).slice(2) + Date.now().toString(16))); }
 function nowEnglish() { return new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }); }
 function dashList(t) { return (t || "").split("\n").map(s => s.trim()).filter(Boolean).join(" - "); }
@@ -238,7 +237,7 @@ function openQuickMove(cardId, currentLaneId) {
     btn.className = lane.id === currentLaneId ? "secondary" : "primary";
     btn.textContent = lane.title;
     btn.onclick = () => {
-      moveCardAtPosition(cardId, currentLaneId, lane.id, null);
+      moveCardToPosition(cardId, currentLaneId, lane.id, 0);
       overlay.classList.remove("show");
     };
     grid.appendChild(btn);
