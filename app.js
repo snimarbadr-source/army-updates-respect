@@ -1,14 +1,15 @@
-/* تحديث مركز العمليات - النسخة الشاملة (إصلاح سنمار النهائي)
-  - إصلاح زر إضافة وحدة جديدة (+).
-  - فصل ذكي للأكواد (مسافات، فواصل، أسطر).
+/* تحديث مركز العمليات - النسخة العسكرية الاحترافية (سنمار V6)
+  المميزات الجديدة:
+  - أنيميشن "نبض الرادار" و "مسح الليزر" بجانب العناوين.
+  - إصلاح زر إضافة وحدة (+) وتوزيع الأكواد المنفصل.
   - تأثير Placeholder ومعاينة عند السحب.
-  - إخفاء تلقائي للانترو.
+  - نظام إخفاء الانترو الذكي.
 */
 
 "use strict";
 
 const $ = (sel) => document.querySelector(sel);
-const STORAGE_KEY = "army_ops_final_v5";
+const STORAGE_KEY = "army_ops_final_v6";
 
 const LANES = [
   { id: "heli", title: "وحدات هيلي" },
@@ -17,34 +18,23 @@ const LANES = [
   { id: "paleto", title: "وحدات نقاط شلال بوليتو" },
 ];
 
-/* ---------- 1. نظام البيانات والحفظ ---------- */
+/* ---------- 1. نظام البيانات ---------- */
 let state = loadState();
 
 function loadState() {
   const raw = localStorage.getItem(STORAGE_KEY);
   return raw ? JSON.parse(raw) : { 
-    form: { 
-      opsName: "", opsDeputy: "", leaders: "", officers: "", 
-      ncos: "", periodOfficer: "", notes: "", handoverTo: "",
-      recvTime: "", handoverTime: "" 
-    }, 
+    form: { opsName: "", opsDeputy: "", leaders: "", officers: "", ncos: "", periodOfficer: "", notes: "", handoverTo: "", recvTime: "", handoverTime: "" }, 
     lanes: { heli: [], great_ocean: [], sandy: [], paleto: [] } 
   };
 }
 
-function saveState() { 
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); 
-}
+function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 
-/* ---------- 2. إضافة الوحدات (يدوي واستخراج) ---------- */
-
-// إصلاح مشكلة إضافة وحدة جديدة عند الضغط على الزر (+)
+/* ---------- 2. إضافة الوحدات (فصل ذكي) ---------- */
 function addUnit() {
-  const newCard = { id: uid(), text: "" };
-  state.lanes.heli.unshift(newCard); // يضيفها دائماً في قسم هيلي كبداية
-  saveState();
-  renderBoard();
-  refreshFinalText(true);
+  state.lanes.heli.unshift({ id: uid(), text: "" });
+  saveState(); renderBoard(); refreshFinalText(true);
   toast("تمت إضافة وحدة فارغة", "إضافة");
 }
 
@@ -57,15 +47,9 @@ function processInputToUnits(rawText) {
 function addExtractedLinesToLane(laneId) {
   const ta = $("#extractedList");
   const unitCodes = processInputToUnits(ta?.value || "");
-  if (unitCodes.length === 0) { toast("لا يوجد أكواد!", "تنبيه"); return; }
-
-  unitCodes.forEach(code => {
-    state.lanes[laneId].push({ id: uid(), text: code });
-  });
-
-  saveState();
-  renderBoard();
-  refreshFinalText(true);
+  if (!unitCodes.length) { toast("لا توجد أكواد!", "تنبيه"); return; }
+  unitCodes.forEach(code => state.lanes[laneId].push({ id: uid(), text: code }));
+  saveState(); renderBoard(); refreshFinalText(true);
   playSuccessEffect(laneId);
   ta.value = ""; 
   toast(`تم توزيع ${unitCodes.length} وحدة`, "توزيع");
@@ -83,7 +67,14 @@ function renderBoard() {
     const laneEl = document.createElement("div");
     laneEl.className = "lane";
     laneEl.dataset.laneId = lane.id;
-    laneEl.innerHTML = `<div class="laneHeader"><div class="laneTitle">${lane.title}</div><div class="laneCount">${state.lanes[lane.id].length}</div></div>`;
+    // إضافة أيقونة الرادار المتحركة بجانب العنوان
+    laneEl.innerHTML = `
+      <div class="laneHeader">
+        <div class="radar-container"><div class="radar-dot"></div><div class="radar-pulse"></div></div>
+        <div class="laneTitle">${lane.title}</div>
+        <div class="laneCount">${state.lanes[lane.id].length}</div>
+      </div>
+    `;
     
     const body = document.createElement("div");
     body.className = "laneBody";
@@ -124,8 +115,7 @@ function getDragAfterElement(container, y) {
 }
 
 function moveCardToPosition(id, from, to, newIdx) {
-  const fromLane = state.lanes[from];
-  const toLane = state.lanes[to];
+  const fromLane = state.lanes[from], toLane = state.lanes[to];
   const oldIdx = fromLane.findIndex(c => c.id === id);
   if (oldIdx === -1) return;
   const [card] = fromLane.splice(oldIdx, 1);
@@ -135,38 +125,6 @@ function moveCardToPosition(id, from, to, newIdx) {
 }
 
 /* ---------- 4. التقرير والواجهة ---------- */
-function buildReportText() {
-  const f = state.form;
-  const lines = [
-    `اسم العمليات : ${(f.opsName || "").trim()}`,
-    `نائب العمليات : ${(f.opsDeputy || "").trim()}`,
-    "",
-    `قيادات : ${dashList(f.leaders) || "-"}`,
-    `ضباط : ${dashList(f.officers) || "-"}`,
-    `ضباط صف : ${dashList(f.ncos) || "-"}`,
-    "",
-    `مسؤول الفتره : ${dashList(f.periodOfficer) || "-"}`,
-    "",
-    "توزيع الوحدات :",
-    ""
-  ];
-
-  LANES.forEach(lane => {
-    const units = state.lanes[lane.id].map(c => (c.text || "").trim()).filter(Boolean);
-    lines.push(`| ${lane.title} |`);
-    lines.push(units.join(", ") || "-");
-    lines.push("");
-  });
-
-  lines.push("الملاحظات :");
-  lines.push((f.notes || "").trim() || "-");
-  lines.push("");
-  lines.push(`وقت الاستلام : ${(f.recvTime || "").trim()}`);
-  lines.push(`وقت التسليم : ${(f.handoverTime || "").trim()}`);
-  lines.push(`تم التسليم إلى : ${(f.handoverTo || "").trim()}`);
-  return lines.join("\n");
-}
-
 function renderCard(laneId, card) {
   const el = document.createElement("div");
   el.className = "unitCard";
@@ -177,7 +135,6 @@ function renderCard(laneId, card) {
       <button class="iconBtn move-fast">⇄</button>
       <button class="iconBtn danger">×</button>
     </div>`;
-
   el.addEventListener("dragstart", () => {
     dragging = { cardId: card.id, fromLane: laneId };
     el.classList.add("dragging");
@@ -193,21 +150,64 @@ function renderCard(laneId, card) {
   return el;
 }
 
-/* ---------- 5. ربط الأحداث وإصلاح الانترو ---------- */
+function buildReportText() {
+  const f = state.form;
+  const lines = [`اسم العمليات : ${(f.opsName || "").trim()}`, `نائب العمليات : ${(f.opsDeputy || "").trim()}`, "", `قيادات : ${dashList(f.leaders) || "-"}`, `ضباط : ${dashList(f.officers) || "-"}`, `ضباط صف : ${dashList(f.ncos) || "-"}`, "", `مسؤول الفتره : ${dashList(f.periodOfficer) || "-"}`, "", "توزيع الوحدات :", ""];
+  LANES.forEach(lane => {
+    const units = state.lanes[lane.id].map(c => (c.text || "").trim()).filter(Boolean);
+    lines.push(`| ${lane.title} |`);
+    lines.push(units.join(", ") || "-");
+    lines.push("");
+  });
+  lines.push("الملاحظات :", (f.notes || "").trim() || "-", "", `وقت الاستلام : ${(f.recvTime || "").trim()}`, `وقت التسليم : ${(f.handoverTime || "").trim()}`, `تم التسليم إلى : ${(f.handoverTo || "").trim()}`);
+  return lines.join("\n");
+}
+
+/* ---------- 5. الأنيميشن العسكري (CSS Injection) ---------- */
+const militaryStyle = document.createElement('style');
+militaryStyle.innerHTML = `
+  /* أنيميشن الرادار بجانب العناوين */
+  .radar-container { position: relative; width: 20px; height: 20px; margin-left: 10px; display: flex; align-items: center; justify-content: center; }
+  .radar-dot { width: 6px; height: 6px; background: var(--gold); border-radius: 50%; z-index: 2; }
+  .radar-pulse { 
+    position: absolute; width: 100%; height: 100%; border: 2px solid var(--gold); 
+    border-radius: 50%; animation: radar-beam 2s infinite linear; opacity: 0; 
+  }
+  @keyframes radar-beam {
+    0% { transform: scale(0.5); opacity: 1; }
+    100% { transform: scale(2.5); opacity: 0; }
+  }
+
+  /* أنيميشن مسح الليزر على العنوان */
+  .laneHeader { position: relative; overflow: hidden; }
+  .laneHeader::after {
+    content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(216, 178, 74, 0.2), transparent);
+    animation: laser-scan 4s infinite;
+  }
+  @keyframes laser-scan {
+    0% { left: -100%; }
+    100% { left: 150%; }
+  }
+
+  .unit-placeholder { height: 44px; background: rgba(216, 178, 74, 0.1); border: 2px dashed var(--gold); border-radius: 8px; margin: 4px 0; }
+  .lane-active-effect { box-shadow: 0 0 20px var(--gold) !important; transition: 0.3s; }
+  .unitCard.dragging { opacity: 0.1; }
+`;
+document.head.appendChild(militaryStyle);
+
+/* ---------- 6. ربط الـ UI والتشغيل ---------- */
 function bindUI() {
   const fields = ["opsName", "opsDeputy", "leaders", "officers", "ncos", "periodOfficer", "notes", "handoverTo"];
-  fields.forEach(f => { 
-    const el = $("#" + f);
-    if (el) el.oninput = (e) => { state.form[f] = e.target.value; saveState(); refreshFinalText(); }; 
-  });
-
+  fields.forEach(f => { if ($("#" + f)) $("#" + f).oninput = (e) => { state.form[f] = e.target.value; saveState(); refreshFinalText(); }; });
+  
   $("#btnAddUnit")?.addEventListener("click", addUnit);
   $("#btnStart")?.addEventListener("click", () => { state.form.recvTime = nowEnglish(); renderAll(); });
   $("#btnEnd")?.addEventListener("click", () => { state.form.handoverTime = nowEnglish(); renderAll(); });
-  $("#btnCopyReport")?.addEventListener("click", async () => { await navigator.clipboard.writeText($("#finalText").value); toast("تم النسخ!"); });
+  $("#btnCopyReport")?.addEventListener("click", async () => { await navigator.clipboard.writeText($("#finalText").value); toast("تم نسخ التقرير!"); });
   $("#btnAddExtracted")?.addEventListener("click", () => addExtractedLinesToLane("great_ocean"));
   $("#sheetClose")?.addEventListener("click", () => $("#sheetOverlay").classList.remove("show"));
-  $("#btnReset")?.addEventListener("click", () => { if(confirm("إعادة ضبط؟")){ localStorage.removeItem(STORAGE_KEY); location.reload(); }});
+  $("#btnReset")?.addEventListener("click", () => { if(confirm("حذف البيانات؟")){ localStorage.removeItem(STORAGE_KEY); location.reload(); }});
 }
 
 function renderAll() {
@@ -217,19 +217,16 @@ function renderAll() {
 }
 
 function openQuickMove(cardId, currentLaneId) {
-  const overlay = $("#sheetOverlay");
-  const grid = $("#sheetGrid");
+  const overlay = $("#sheetOverlay"), grid = $("#sheetGrid");
   grid.innerHTML = "";
   LANES.forEach(lane => {
-    const btn = document.createElement("button");
-    btn.className = "primary"; btn.textContent = lane.title;
+    const btn = document.createElement("button"); btn.className = "primary"; btn.textContent = lane.title;
     btn.onclick = () => { moveCardToPosition(cardId, currentLaneId, lane.id, -1); overlay.classList.remove("show"); };
     grid.appendChild(btn);
   });
   overlay.classList.add("show");
 }
 
-/* ---------- مساعدات النظام ---------- */
 function uid() { return (crypto?.randomUUID?.() || ("u_" + Math.random().toString(16).slice(2) + Date.now().toString(16))); }
 function nowEnglish() { return new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }); }
 function dashList(t) { return (t || "").split("\n").map(s => s.trim()).filter(Boolean).join(" - "); }
@@ -239,30 +236,14 @@ function playSuccessEffect(laneId) {
   if (el) { el.classList.add("lane-active-effect"); setTimeout(() => el.classList.remove("lane-active-effect"), 600); }
 }
 function refreshFinalText(force = false) {
-  const ta = $("#finalText");
-  if (ta && (force || document.activeElement !== ta)) ta.value = buildReportText();
+  const ta = $("#finalText"); if (ta && (force || document.activeElement !== ta)) ta.value = buildReportText();
 }
 
-// حقن ستايل التلميح والتأثيرات
-const style = document.createElement('style');
-style.innerHTML = `
-  .unit-placeholder { height: 44px; background: rgba(216, 178, 74, 0.15); border: 2px dashed var(--gold); border-radius: 8px; margin: 4px 0; pointer-events: none; }
-  .unitCard.dragging { opacity: 0.2; }
-  .laneBody.drag-over { background: rgba(216, 178, 74, 0.03); border-radius: 0 0 12px 12px; }
-  .lane-active-effect { box-shadow: 0 0 20px var(--gold) !important; transition: box-shadow 0.3s ease; }
-`;
-document.head.appendChild(style);
-
 document.addEventListener("DOMContentLoaded", () => {
-  bindUI();
-  renderAll();
+  bindUI(); renderAll();
   const intro = $("#intro");
   if (intro) {
-    setTimeout(() => {
-      intro.style.opacity = "0";
-      intro.style.transition = "opacity 0.8s ease";
-      setTimeout(() => intro.remove(), 800);
-    }, 3000);
+    setTimeout(() => { intro.style.opacity = "0"; setTimeout(() => intro.remove(), 800); }, 3000);
     intro.onclick = () => intro.remove();
   }
 });
