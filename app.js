@@ -304,34 +304,43 @@ function bindExtracted() {
   $("#btnAddSelected")?.addEventListener("click", () => addSelectedLineToLane("great_ocean"));
 }
 
-/* ---------- التعديل في النتيجة النهائية ---------- */
+/* ---------- التعديل النهائي المطلوب هنا ---------- */
 function buildReportText() {
   const f = state.form;
   const lines = [];
 
+  // 1. الرأسية (الاسم للجانب)
   lines.push(`اسم العمليات : ${(f.opsName || "").trim()}`);
   lines.push(`نائب العمليات : ${(f.opsDeputy || "").trim()}`);
   lines.push("");
 
+  // 2. الرتب (تحت بعضها كما في طلبك)
   lines.push(`قيادات : ${dashList(f.leaders) || "-"}`);
   lines.push(`ضباط : ${dashList(f.officers) || "-"}`);
   lines.push(`ضباط صف : ${dashList(f.ncos) || "-"}`);
   lines.push("");
 
+  // 3. المسؤول
   lines.push(`مسؤول الفتره : ${dashList(f.periodOfficer) || "-"}`);
   lines.push("");
 
+  // 4. التوزيع (اسم النقطة سطر، والأكواد سطر جديد)
   lines.push("توزيع الوحدات :");
   lines.push("");
 
-  // هنا التعديل لعرض الأكواد بالعرض مفصولة بفاصلة لكل قسم
   for (const lane of LANES) {
     const units = state.lanes[lane.id].map(c => (c.text || "").trim()).filter(Boolean);
-    const codes = units.join(", ");
-    lines.push(`| ${lane.title} | ${codes || "-"}`);
+    const codesString = units.join(", ");
+    
+    lines.push(`| ${lane.title} |`); // عنوان القسم في سطر
+    if (codesString) {
+      lines.push(""); // مسافة بسيطة قبل الأكواد
+      lines.push(codesString); // الأكواد في سطر جديد
+    }
+    lines.push(""); // سطر فارغ بين كل قسم
   }
 
-  lines.push("");
+  // 5. الملاحظات والوقت
   lines.push("الملاحظات :");
   lines.push((f.notes || "").trim());
   lines.push("");
