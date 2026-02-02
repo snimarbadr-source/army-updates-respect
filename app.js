@@ -1,15 +1,14 @@
-/* تحديث مركز العمليات - النسخة النهائية المطورة لسنمار
-  المميزات: 
-  - توزيع الوحدات بشكل منفصل (بناءً على مسافة، فاصلة، أو سطر جديد).
-  - تأثير "خيال الوحدة" (Placeholder) قبل الإفلات لتحديد الموضع.
-  - زر نقل سريع للوحدات.
-  - حل مشكلة اختفاء الانترو تلقائياً.
+/* تحديث مركز العمليات - النسخة الشاملة (إصلاح سنمار النهائي)
+  - إصلاح زر إضافة وحدة جديدة (+).
+  - فصل ذكي للأكواد (مسافات، فواصل، أسطر).
+  - تأثير Placeholder ومعاينة عند السحب.
+  - إخفاء تلقائي للانترو.
 */
 
 "use strict";
 
 const $ = (sel) => document.querySelector(sel);
-const STORAGE_KEY = "army_ops_final_v4";
+const STORAGE_KEY = "army_ops_final_v5";
 
 const LANES = [
   { id: "heli", title: "وحدات هيلي" },
@@ -18,23 +17,47 @@ const LANES = [
   { id: "paleto", title: "وحدات نقاط شلال بوليتو" },
 ];
 
-/* ---------- 1. معالجة النصوص والتوزيع المنفصل ---------- */
+/* ---------- 1. نظام البيانات والحفظ ---------- */
+let state = loadState();
+
+function loadState() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  return raw ? JSON.parse(raw) : { 
+    form: { 
+      opsName: "", opsDeputy: "", leaders: "", officers: "", 
+      ncos: "", periodOfficer: "", notes: "", handoverTo: "",
+      recvTime: "", handoverTime: "" 
+    }, 
+    lanes: { heli: [], great_ocean: [], sandy: [], paleto: [] } 
+  };
+}
+
+function saveState() { 
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); 
+}
+
+/* ---------- 2. إضافة الوحدات (يدوي واستخراج) ---------- */
+
+// إصلاح مشكلة إضافة وحدة جديدة عند الضغط على الزر (+)
+function addUnit() {
+  const newCard = { id: uid(), text: "" };
+  state.lanes.heli.unshift(newCard); // يضيفها دائماً في قسم هيلي كبداية
+  saveState();
+  renderBoard();
+  refreshFinalText(true);
+  toast("تمت إضافة وحدة فارغة", "إضافة");
+}
+
 function processInputToUnits(rawText) {
   if (!rawText) return [];
-  // استبدال الفواصل (العربية والإنجليزية) بمسافات لضمان التوزيع بالعرض أو الطول
   let cleanText = rawText.replace(/،/g, ' ').replace(/,/g, ' ');
-  // التقسيم بناءً على أي مسافة أو سطر جديد
   return cleanText.split(/\s+/).map(s => s.trim()).filter(s => s.length > 0);
 }
 
 function addExtractedLinesToLane(laneId) {
   const ta = $("#extractedList");
   const unitCodes = processInputToUnits(ta?.value || "");
-  
-  if (unitCodes.length === 0) {
-    toast("يرجى إدخال أكواد صحيحة أولاً", "تنبيه");
-    return;
-  }
+  if (unitCodes.length === 0) { toast("لا يوجد أكواد!", "تنبيه"); return; }
 
   unitCodes.forEach(code => {
     state.lanes[laneId].push({ id: uid(), text: code });
@@ -45,10 +68,10 @@ function addExtractedLinesToLane(laneId) {
   refreshFinalText(true);
   playSuccessEffect(laneId);
   ta.value = ""; 
-  toast(`تم توزيع ${unitCodes.length} وحدة بنجاح`, "توزيع");
+  toast(`تم توزيع ${unitCodes.length} وحدة`, "توزيع");
 }
 
-/* ---------- 2. نظام السحب والإفلات مع المعاينة (Placeholder) ---------- */
+/* ---------- 3. السحب والإفلات ومعاينة الموقع ---------- */
 let dragging = { cardId: null, fromLane: null };
 const placeholder = document.createElement("div");
 placeholder.className = "unit-placeholder";
@@ -111,21 +134,22 @@ function moveCardToPosition(id, from, to, newIdx) {
   playSuccessEffect(to);
 }
 
-/* ---------- 3. بناء التقرير النهائي ---------- */
+/* ---------- 4. التقرير والواجهة ---------- */
 function buildReportText() {
   const f = state.form;
-  const lines = [];
-  lines.push(`اسم العمليات : ${(f.opsName || "").trim()}`);
-  lines.push(`نائب العمليات : ${(f.opsDeputy || "").trim()}`);
-  lines.push("");
-  lines.push(`قيادات : ${dashList(f.leaders) || "-"}`);
-  lines.push(`ضباط : ${dashList(f.officers) || "-"}`);
-  lines.push(`ضباط صف : ${dashList(f.ncos) || "-"}`);
-  lines.push("");
-  lines.push(`مسؤول الفتره : ${dashList(f.periodOfficer) || "-"}`);
-  lines.push("");
-  lines.push("توزيع الوحدات :");
-  lines.push("");
+  const lines = [
+    `اسم العمليات : ${(f.opsName || "").trim()}`,
+    `نائب العمليات : ${(f.opsDeputy || "").trim()}`,
+    "",
+    `قيادات : ${dashList(f.leaders) || "-"}`,
+    `ضباط : ${dashList(f.officers) || "-"}`,
+    `ضباط صف : ${dashList(f.ncos) || "-"}`,
+    "",
+    `مسؤول الفتره : ${dashList(f.periodOfficer) || "-"}`,
+    "",
+    "توزيع الوحدات :",
+    ""
+  ];
 
   LANES.forEach(lane => {
     const units = state.lanes[lane.id].map(c => (c.text || "").trim()).filter(Boolean);
@@ -143,7 +167,6 @@ function buildReportText() {
   return lines.join("\n");
 }
 
-/* ---------- 4. وظائف البطاقة والواجهة ---------- */
 function renderCard(laneId, card) {
   const el = document.createElement("div");
   el.className = "unitCard";
@@ -170,39 +193,21 @@ function renderCard(laneId, card) {
   return el;
 }
 
-function playSuccessEffect(laneId) {
-  const el = document.querySelector(`.lane[data-lane-id="${laneId}"]`);
-  if (el) { el.classList.add("lane-active-effect"); setTimeout(() => el.classList.remove("lane-active-effect"), 600); }
-}
-
-function uid() { return (crypto?.randomUUID?.() || ("u_" + Math.random().toString(16).slice(2) + Date.now().toString(16))); }
-function nowEnglish() { return new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }); }
-function dashList(t) { return (t || "").split("\n").map(s => s.trim()).filter(Boolean).join(" - "); }
-
-function loadState() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  return raw ? JSON.parse(raw) : { form: {}, lanes: { heli: [], great_ocean: [], sandy: [], paleto: [] } };
-}
-function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
-let state = loadState();
-
-function refreshFinalText(force = false) {
-  const ta = $("#finalText");
-  if (ta && (force || document.activeElement !== ta)) ta.value = buildReportText();
-}
-
+/* ---------- 5. ربط الأحداث وإصلاح الانترو ---------- */
 function bindUI() {
   const fields = ["opsName", "opsDeputy", "leaders", "officers", "ncos", "periodOfficer", "notes", "handoverTo"];
   fields.forEach(f => { 
     const el = $("#" + f);
     if (el) el.oninput = (e) => { state.form[f] = e.target.value; saveState(); refreshFinalText(); }; 
   });
-  $("#btnStart").onclick = () => { state.form.recvTime = nowEnglish(); renderAll(); };
-  $("#btnEnd").onclick = () => { state.form.handoverTime = nowEnglish(); renderAll(); };
-  $("#btnCopyReport").onclick = async () => { await navigator.clipboard.writeText($("#finalText").value); toast("تم النسخ!"); };
-  $("#btnAddExtracted").onclick = () => addExtractedLinesToLane("great_ocean");
-  $("#sheetClose").onclick = () => $("#sheetOverlay").classList.remove("show");
-  $("#btnReset").onclick = () => { if(confirm("حذف كل البيانات؟")){ localStorage.removeItem(STORAGE_KEY); location.reload(); }};
+
+  $("#btnAddUnit")?.addEventListener("click", addUnit);
+  $("#btnStart")?.addEventListener("click", () => { state.form.recvTime = nowEnglish(); renderAll(); });
+  $("#btnEnd")?.addEventListener("click", () => { state.form.handoverTime = nowEnglish(); renderAll(); });
+  $("#btnCopyReport")?.addEventListener("click", async () => { await navigator.clipboard.writeText($("#finalText").value); toast("تم النسخ!"); });
+  $("#btnAddExtracted")?.addEventListener("click", () => addExtractedLinesToLane("great_ocean"));
+  $("#sheetClose")?.addEventListener("click", () => $("#sheetOverlay").classList.remove("show"));
+  $("#btnReset")?.addEventListener("click", () => { if(confirm("إعادة ضبط؟")){ localStorage.removeItem(STORAGE_KEY); location.reload(); }});
 }
 
 function renderAll() {
@@ -224,9 +229,21 @@ function openQuickMove(cardId, currentLaneId) {
   overlay.classList.add("show");
 }
 
+/* ---------- مساعدات النظام ---------- */
+function uid() { return (crypto?.randomUUID?.() || ("u_" + Math.random().toString(16).slice(2) + Date.now().toString(16))); }
+function nowEnglish() { return new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }); }
+function dashList(t) { return (t || "").split("\n").map(s => s.trim()).filter(Boolean).join(" - "); }
 function toast(m) { const t = $("#toast"); if(t){ t.textContent = m; t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 2000); } }
+function playSuccessEffect(laneId) {
+  const el = document.querySelector(`.lane[data-lane-id="${laneId}"]`);
+  if (el) { el.classList.add("lane-active-effect"); setTimeout(() => el.classList.remove("lane-active-effect"), 600); }
+}
+function refreshFinalText(force = false) {
+  const ta = $("#finalText");
+  if (ta && (force || document.activeElement !== ta)) ta.value = buildReportText();
+}
 
-/* ---------- 5. حل مشكلة الانترو + التنسيق التفاعلي ---------- */
+// حقن ستايل التلميح والتأثيرات
 const style = document.createElement('style');
 style.innerHTML = `
   .unit-placeholder { height: 44px; background: rgba(216, 178, 74, 0.15); border: 2px dashed var(--gold); border-radius: 8px; margin: 4px 0; pointer-events: none; }
@@ -239,8 +256,6 @@ document.head.appendChild(style);
 document.addEventListener("DOMContentLoaded", () => {
   bindUI();
   renderAll();
-
-  // حل مشكلة عدم اختفاء الانترو
   const intro = $("#intro");
   if (intro) {
     setTimeout(() => {
