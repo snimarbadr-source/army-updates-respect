@@ -1,17 +1,21 @@
-/* تحديث مركز العمليات - النسخة العسكرية الكاملة (سنمار V8)
-  - إضافة النقاط الجديدة (هاي واي، طريق 68، العامة، تاهو، مدرعة).
-  - شعارات عسكرية متحركة (النسر التكتيكي) بجانب العنوان الرئيسي.
-  - أنيميشن نبض الرادار ومسح الليزر.
-  - إصلاح التوزيع المنفصل وإضافة وحدة (+).
+/* تحديث مركز عمليات الجيش - النسخة الشاملة (سنمار V9)
+   - إضافة النقاط الجديدة مع النقاط القديمة.
+   - شعارات عسكرية متحركة (النسر التكتيكي) بجانب العنوان.
+   - أنيميشن الرادار ومسح الليزر الاحترافي.
+   - التوزيع المنفصل الذكي (طول/عرض/فواصل).
 */
 
 "use strict";
 
 const $ = (sel) => document.querySelector(sel);
-const STORAGE_KEY = "army_ops_final_v8";
+const STORAGE_KEY = "army_ops_v9_complete";
 
-// النقاط الجديدة التي طلبها سنمار
+// القائمة الكاملة للنقاط (القديمة + الجديدة)
 const LANES = [
+  { id: "heli", title: "وحدات هيلي" },
+  { id: "great_ocean", title: "وحدات نقاط قريت اوشن" },
+  { id: "sandy", title: "وحدات نقاط ساندي" },
+  { id: "paleto", title: "وحدات نقاط شلال بوليتو" },
   { id: "highway", title: "وحدات الهاي واي الشرقي" },
   { id: "road68", title: "وحدات طريق ٦٨" },
   { id: "general", title: "وحدات العامة" },
@@ -19,20 +23,25 @@ const LANES = [
   { id: "armored", title: "وحدات المدرعه" }
 ];
 
-/* ---------- 1. نظام البيانات ---------- */
+/* ---------- 1. إدارة البيانات ---------- */
 let state = loadState();
 
 function loadState() {
   const raw = localStorage.getItem(STORAGE_KEY);
-  return raw ? JSON.parse(raw) : { 
-    form: { opsName: "", opsDeputy: "", leaders: "", officers: "", ncos: "", periodOfficer: "", notes: "", handoverTo: "", recvTime: "", handoverTime: "" }, 
-    lanes: { highway: [], road68: [], general: [], tahoe: [], armored: [] } 
+  if (raw) return JSON.parse(raw);
+  
+  // الحالة الافتراضية
+  const initialState = {
+    form: { opsName: "", opsDeputy: "", leaders: "", officers: "", ncos: "", periodOfficer: "", notes: "", handoverTo: "", recvTime: "", handoverTime: "" },
+    lanes: {}
   };
+  LANES.forEach(l => initialState.lanes[l.id] = []);
+  return initialState;
 }
 
 function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 
-/* ---------- 2. الواجهة والشعارات العسكرية ---------- */
+/* ---------- 2. الواجهة والأنيميشن العسكري ---------- */
 function injectMilitaryUI() {
   const header = $(".headerMain");
   if (header) {
@@ -45,7 +54,7 @@ function injectMilitaryUI() {
 
   const style = document.createElement('style');
   style.innerHTML = `
-    .headerMain { display: flex; align-items: center; justify-content: center; gap: 40px; padding: 25px; background: rgba(0,0,0,0.3); border-radius: 15px; border-bottom: 2px solid var(--gold); }
+    .headerMain { display: flex; align-items: center; justify-content: center; gap: 40px; padding: 25px; border-bottom: 2px solid var(--gold); background: rgba(0,0,0,0.2); }
     .army-logo {
       width: 70px; height: 70px;
       background: url('https://cdn-icons-png.flaticon.com/512/2590/2590525.png'); 
@@ -54,19 +63,17 @@ function injectMilitaryUI() {
       animation: logo-float 3s infinite ease-in-out;
     }
     .logo-right { transform: scaleX(-1); }
-    @keyframes logo-float { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-10px) scale(1.1); } }
+    @keyframes logo-float { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-10px) scale(1.05); } }
 
-    /* أنيميشن الرادار */
     .radar-container { position: relative; width: 18px; height: 18px; margin-left: 10px; display: inline-flex; align-items: center; justify-content: center; }
     .radar-dot { width: 4px; height: 4px; background: var(--gold); border-radius: 50%; z-index: 2; }
     .radar-pulse { position: absolute; width: 100%; height: 100%; border: 1.5px solid var(--gold); border-radius: 50%; animation: radar-anim 2s infinite linear; opacity: 0; }
     @keyframes radar-anim { 0% { transform: scale(0.5); opacity: 1; } 100% { transform: scale(2.5); opacity: 0; } }
 
-    /* مسح الليزر */
     .laneHeader { position: relative; overflow: hidden; }
     .laneHeader::after {
       content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(216, 178, 74, 0.4), transparent);
+      background: linear-gradient(90deg, transparent, rgba(216, 178, 74, 0.3), transparent);
       animation: laser-line 4s infinite;
     }
     @keyframes laser-line { 0% { left: -100%; } 100% { left: 200%; } }
@@ -78,9 +85,10 @@ function injectMilitaryUI() {
   document.head.appendChild(style);
 }
 
-/* ---------- 3. إدارة الوحدات والتوزيع المنفصل ---------- */
+/* ---------- 3. التوزيع والوحدات ---------- */
 function addUnit() {
-  state.lanes.highway.unshift({ id: uid(), text: "" });
+  const firstLane = LANES[0].id;
+  state.lanes[firstLane].unshift({ id: uid(), text: "" });
   saveState(); renderBoard(); refreshFinalText(true);
   toast("تمت إضافة وحدة فارغة", "إضافة");
 }
@@ -118,7 +126,7 @@ function renderBoard() {
       <div class="laneHeader">
         <div class="radar-container"><div class="radar-dot"></div><div class="radar-pulse"></div></div>
         <div class="laneTitle">${lane.title}</div>
-        <div class="laneCount">${state.lanes[lane.id].length}</div>
+        <div class="laneCount">${state.lanes[lane.id]?.length || 0}</div>
       </div>
     `;
     const body = document.createElement("div");
@@ -141,7 +149,7 @@ function renderBoard() {
       placeholder.remove();
     });
 
-    state.lanes[lane.id].forEach(card => body.appendChild(renderCard(lane.id, card)));
+    (state.lanes[lane.id] || []).forEach(card => body.appendChild(renderCard(lane.id, card)));
     laneEl.appendChild(body);
     board.appendChild(laneEl);
   }
@@ -167,7 +175,7 @@ function moveCardToPosition(id, from, to, newIdx) {
   playSuccessEffect(to);
 }
 
-/* ---------- 5. التقرير والواجهة ---------- */
+/* ---------- 5. التقرير والبطاقات ---------- */
 function renderCard(laneId, card) {
   const el = document.createElement("div");
   el.className = "unitCard";
@@ -210,7 +218,7 @@ function buildReportText() {
   ];
 
   LANES.forEach(lane => {
-    const units = state.lanes[lane.id].map(c => (c.text || "").trim()).filter(Boolean);
+    const units = (state.lanes[lane.id] || []).map(c => (c.text || "").trim()).filter(Boolean);
     lines.push(`| ${lane.title} |`);
     lines.push(units.join(", ") || "-");
     lines.push("");
@@ -220,7 +228,7 @@ function buildReportText() {
   return lines.join("\n");
 }
 
-/* ---------- 6. التشغيل والربط ---------- */
+/* ---------- 6. ربط الـ UI والتشغيل ---------- */
 function bindUI() {
   const fields = ["opsName", "opsDeputy", "leaders", "officers", "ncos", "periodOfficer", "notes", "handoverTo"];
   fields.forEach(f => { if ($("#" + f)) $("#" + f).oninput = (e) => { state.form[f] = e.target.value; saveState(); refreshFinalText(); }; });
@@ -250,6 +258,7 @@ function openQuickMove(cardId, currentLaneId) {
   overlay.classList.add("show");
 }
 
+/* المساعدات */
 function uid() { return (crypto?.randomUUID?.() || ("u_" + Math.random().toString(16).slice(2) + Date.now().toString(16))); }
 function nowEnglish() { return new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }); }
 function dashList(t) { return (t || "").split("\n").map(s => s.trim()).filter(Boolean).join(" - "); }
