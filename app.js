@@ -1,21 +1,22 @@
-/* تحديث مركز العمليات - النسخة العسكرية الفاخرة (سنمار V7)
-  المميزات:
-  - شعارات عسكرية متحركة (النسر التكتيكي ودرع العمليات) حول العنوان.
-  - أنيميشن "الرادار" و "المسح الليزري" للعناوين.
-  - إصلاح زر الإضافة (+) والتوزيع المنفصل الذكي.
-  - معاينة السحب (Placeholder) وحل مشكلة الانترو.
+/* تحديث مركز العمليات - النسخة العسكرية الكاملة (سنمار V8)
+  - إضافة النقاط الجديدة (هاي واي، طريق 68، العامة، تاهو، مدرعة).
+  - شعارات عسكرية متحركة (النسر التكتيكي) بجانب العنوان الرئيسي.
+  - أنيميشن نبض الرادار ومسح الليزر.
+  - إصلاح التوزيع المنفصل وإضافة وحدة (+).
 */
 
 "use strict";
 
 const $ = (sel) => document.querySelector(sel);
-const STORAGE_KEY = "army_ops_final_v7";
+const STORAGE_KEY = "army_ops_final_v8";
 
+// النقاط الجديدة التي طلبها سنمار
 const LANES = [
-  { id: "heli", title: "وحدات هيلي" },
-  { id: "great_ocean", title: "وحدات نقاط قريت اوشن" },
-  { id: "sandy", title: "وحدات نقاط ساندي" },
-  { id: "paleto", title: "وحدات نقاط شلال بوليتو" },
+  { id: "highway", title: "وحدات الهاي واي الشرقي" },
+  { id: "road68", title: "وحدات طريق ٦٨" },
+  { id: "general", title: "وحدات العامة" },
+  { id: "tahoe", title: "وحدات التاهو" },
+  { id: "armored", title: "وحدات المدرعه" }
 ];
 
 /* ---------- 1. نظام البيانات ---------- */
@@ -25,43 +26,37 @@ function loadState() {
   const raw = localStorage.getItem(STORAGE_KEY);
   return raw ? JSON.parse(raw) : { 
     form: { opsName: "", opsDeputy: "", leaders: "", officers: "", ncos: "", periodOfficer: "", notes: "", handoverTo: "", recvTime: "", handoverTime: "" }, 
-    lanes: { heli: [], great_ocean: [], sandy: [], paleto: [] } 
+    lanes: { highway: [], road68: [], general: [], tahoe: [], armored: [] } 
   };
 }
 
 function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 
-/* ---------- 2. إضافة الشعارات والأنيميشن (تعديل الـ UI برمجياً) ---------- */
+/* ---------- 2. الواجهة والشعارات العسكرية ---------- */
 function injectMilitaryUI() {
-  // إضافة الشعارات بجانب العنوان الرئيسي
-  const mainTitleContainer = $(".headerMain"); // تأكد أن هذا هو كلاس العنوان الرئيسي عندك
-  if (mainTitleContainer) {
-    mainTitleContainer.innerHTML = `
-      <div class="military-logo logo-left"></div>
+  const header = $(".headerMain");
+  if (header) {
+    header.innerHTML = `
+      <div class="army-logo logo-left"></div>
       <h1 class="main-title">تحديث مركز العمليات</h1>
-      <div class="military-logo logo-right"></div>
+      <div class="army-logo logo-right"></div>
     `;
   }
 
   const style = document.createElement('style');
   style.innerHTML = `
-    /* تصميم الشعارات العسكرية */
-    .headerMain { display: flex; align-items: center; justify-content: center; gap: 30px; padding: 20px; }
-    .military-logo {
-      width: 60px; height: 60px;
-      background: url('https://cdn-icons-png.flaticon.com/512/2590/2590525.png'); /* أيقونة درع عسكري */
+    .headerMain { display: flex; align-items: center; justify-content: center; gap: 40px; padding: 25px; background: rgba(0,0,0,0.3); border-radius: 15px; border-bottom: 2px solid var(--gold); }
+    .army-logo {
+      width: 70px; height: 70px;
+      background: url('https://cdn-icons-png.flaticon.com/512/2590/2590525.png'); 
       background-size: contain; background-repeat: no-repeat;
-      filter: drop-shadow(0 0 10px var(--gold));
-      animation: logo-pulse 2s infinite ease-in-out;
+      filter: drop-shadow(0 0 15px var(--gold));
+      animation: logo-float 3s infinite ease-in-out;
     }
     .logo-right { transform: scaleX(-1); }
-    
-    @keyframes logo-pulse {
-      0%, 100% { transform: scale(1); filter: drop-shadow(0 0 5px var(--gold)); }
-      50% { transform: scale(1.1); filter: drop-shadow(0 0 20px var(--gold)); }
-    }
+    @keyframes logo-float { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-10px) scale(1.1); } }
 
-    /* أنيميشن الرادار للعناوين الفرعية */
+    /* أنيميشن الرادار */
     .radar-container { position: relative; width: 18px; height: 18px; margin-left: 10px; display: inline-flex; align-items: center; justify-content: center; }
     .radar-dot { width: 4px; height: 4px; background: var(--gold); border-radius: 50%; z-index: 2; }
     .radar-pulse { position: absolute; width: 100%; height: 100%; border: 1.5px solid var(--gold); border-radius: 50%; animation: radar-anim 2s infinite linear; opacity: 0; }
@@ -70,22 +65,22 @@ function injectMilitaryUI() {
     /* مسح الليزر */
     .laneHeader { position: relative; overflow: hidden; }
     .laneHeader::after {
-      content: ''; position: absolute; top: 0; left: -100%; width: 40%; height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(216, 178, 74, 0.3), transparent);
-      animation: laser-line 3s infinite;
+      content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(216, 178, 74, 0.4), transparent);
+      animation: laser-line 4s infinite;
     }
     @keyframes laser-line { 0% { left: -100%; } 100% { left: 200%; } }
 
     .unit-placeholder { height: 44px; background: rgba(216, 178, 74, 0.1); border: 2px dashed var(--gold); border-radius: 8px; margin: 5px 0; }
     .unitCard.dragging { opacity: 0.1; }
-    .lane-active-effect { box-shadow: 0 0 25px var(--gold) !important; transition: 0.4s; }
+    .lane-active-effect { box-shadow: 0 0 30px var(--gold) !important; transition: 0.4s; }
   `;
   document.head.appendChild(style);
 }
 
 /* ---------- 3. إدارة الوحدات والتوزيع المنفصل ---------- */
 function addUnit() {
-  state.lanes.heli.unshift({ id: uid(), text: "" });
+  state.lanes.highway.unshift({ id: uid(), text: "" });
   saveState(); renderBoard(); refreshFinalText(true);
   toast("تمت إضافة وحدة فارغة", "إضافة");
 }
@@ -200,11 +195,27 @@ function renderCard(laneId, card) {
 
 function buildReportText() {
   const f = state.form;
-  const lines = [`اسم العمليات : ${(f.opsName || "").trim()}`, `نائب العمليات : ${(f.opsDeputy || "").trim()}`, "", `قيادات : ${dashList(f.leaders) || "-"}`, `ضباط : ${dashList(f.officers) || "-"}`, `ضباط صف : ${dashList(f.ncos) || "-"}`, "", `مسؤول الفتره : ${dashList(f.periodOfficer) || "-"}`, "", "توزيع الوحدات :", ""];
+  const lines = [
+    `اسم العمليات : ${(f.opsName || "").trim()}`,
+    `نائب العمليات : ${(f.opsDeputy || "").trim()}`,
+    "",
+    `قيادات : ${dashList(f.leaders) || "-"}`,
+    `ضباط : ${dashList(f.officers) || "-"}`,
+    `ضباط صف : ${dashList(f.ncos) || "-"}`,
+    "",
+    `مسؤول الفتره : ${dashList(f.periodOfficer) || "-"}`,
+    "",
+    "توزيع الوحدات :",
+    ""
+  ];
+
   LANES.forEach(lane => {
     const units = state.lanes[lane.id].map(c => (c.text || "").trim()).filter(Boolean);
-    lines.push(`| ${lane.title} |`, units.join(", ") || "-", "");
+    lines.push(`| ${lane.title} |`);
+    lines.push(units.join(", ") || "-");
+    lines.push("");
   });
+
   lines.push("الملاحظات :", (f.notes || "").trim() || "-", "", `وقت الاستلام : ${(f.recvTime || "").trim()}`, `وقت التسليم : ${(f.handoverTime || "").trim()}`, `تم التسليم إلى : ${(f.handoverTo || "").trim()}`);
   return lines.join("\n");
 }
@@ -217,7 +228,7 @@ function bindUI() {
   $("#btnStart")?.addEventListener("click", () => { state.form.recvTime = nowEnglish(); renderAll(); });
   $("#btnEnd")?.addEventListener("click", () => { state.form.handoverTime = nowEnglish(); renderAll(); });
   $("#btnCopyReport")?.addEventListener("click", async () => { await navigator.clipboard.writeText($("#finalText").value); toast("تم النسخ!"); });
-  $("#btnAddExtracted")?.addEventListener("click", () => addExtractedLinesToLane("great_ocean"));
+  $("#btnAddExtracted")?.addEventListener("click", () => addExtractedLinesToLane("highway"));
   $("#sheetClose")?.addEventListener("click", () => $("#sheetOverlay").classList.remove("show"));
   $("#btnReset")?.addEventListener("click", () => { if(confirm("إعادة ضبط؟")){ localStorage.removeItem(STORAGE_KEY); location.reload(); }});
 }
@@ -239,7 +250,6 @@ function openQuickMove(cardId, currentLaneId) {
   overlay.classList.add("show");
 }
 
-/* المساعدات */
 function uid() { return (crypto?.randomUUID?.() || ("u_" + Math.random().toString(16).slice(2) + Date.now().toString(16))); }
 function nowEnglish() { return new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }); }
 function dashList(t) { return (t || "").split("\n").map(s => s.trim()).filter(Boolean).join(" - "); }
