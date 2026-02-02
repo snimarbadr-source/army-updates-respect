@@ -1,7 +1,13 @@
+/* Army Ops Update (Full Version)
+  - الذكاء الاصطناعي في توزيع الوحدات (فصل تلقائي)
+  - تأثير التلميح البصري (Placeholder) أثناء السحب
+  - تنسيق التقرير النهائي حسب طلب سنمار
+*/
+
 "use strict";
 
 const $ = (sel) => document.querySelector(sel);
-const STORAGE_KEY = "army_ops_update_v3";
+const STORAGE_KEY = "army_ops_update_v3_final";
 
 const LANES = [
   { id: "heli", title: "وحدات هيلي" },
@@ -10,48 +16,45 @@ const LANES = [
   { id: "paleto", title: "وحدات نقاط شلال بوليتو" },
 ];
 
-/* ---------- التحسين المطلوب: تفكيك النص المستخرج الذكي ---------- */
+/* ---------- 1. معالجة النص المستخرج (الفصل الذكي) ---------- */
 function processInputToUnits(rawText) {
-  // 1. استبدال الفواصل بأسطر جديدة
-  // 2. تقسيم النص بناءً على الأسطر (الطول) أو المسافات الكبيرة
-  // 3. تنظيف كل كود من أي رموز زائدة
-  return rawText
-    .replace(/,/g, '\n')           // تحويل الفواصل لأسطر
-    .split(/\n|\s{2,}/)            // التقسيم عند السطر الجديد أو المسافات الواسعة
-    .map(s => s.trim())            // تنظيف المسافات الجانبية
-    .filter(s => s.length > 0);    // حذف السطور الفارغة
+  if (!rawText) return [];
+  
+  // استبدال الفواصل العربية والإنجليزية بمسافات لتوحيد المعالجة
+  let cleanText = rawText.replace(/،/g, ' ').replace(/,/g, ' ');
+  
+  // التقسيم بناءً على: (مسافة واحدة أو أكثر) أو (سطر جديد)
+  // هذا يضمن فصل الأكواد سواء كانت بالطول أو بالعرض
+  return cleanText
+    .split(/\s+/) 
+    .map(s => s.trim())
+    .filter(s => s.length > 0); 
 }
 
 function addExtractedLinesToLane(laneId) {
   const ta = $("#extractedList");
   const raw = ta?.value || "";
-  
   const unitCodes = processInputToUnits(raw);
   
   if (unitCodes.length === 0) {
-    toast("لا يوجد أكواد صالحة في النص!", "تنبيه");
+    toast("يرجى إدخال أكواد صحيحة", "تنبيه");
     return;
   }
 
-  // إضافة كل كود كبطاقة منفصلة تماماً
+  // إضافة كل كود كبطاقة مستقلة
   unitCodes.forEach(code => {
-    state.lanes[laneId].push({
-      id: uid(),
-      text: code
-    });
+    state.lanes[laneId].push({ id: uid(), text: code });
   });
 
   saveState();
   renderBoard();
   refreshFinalText(true);
-  playSuccessEffect(laneId); // التأثير البصري الذي طلبته سابقاً
-  toast(`تم توزيع ${unitCodes.length} وحدة بنجاح.`, "توزيع منفصل");
-  
-  // اختياري: مسح مربع النص المستخرج بعد الإضافة
-  // ta.value = ""; 
+  playSuccessEffect(laneId);
+  toast(`تم توزيع ${unitCodes.length} وحدة بشكل منفصل`, "نجاح");
+  ta.value = ""; // مسح المربع بعد التوزيع لراحة المستخدم
 }
 
-/* ---------- نظام السحب المتطور مع التلميح البصري (Placeholder) ---------- */
+/* ---------- 2. نظام السحب المتطور (المعاينة قبل الإفلات) ---------- */
 let dragging = { cardId: null, fromLane: null };
 const placeholder = document.createElement("div");
 placeholder.className = "unit-placeholder";
@@ -109,12 +112,12 @@ function moveCardToPosition(id, from, to, newIdx) {
   const oldIdx = fromLane.findIndex(c => c.id === id);
   if (oldIdx === -1) return;
   const [card] = fromLane.splice(oldIdx, 1);
-  toLane.splice(newIdx, 0, card);
+  if (newIdx === -1) toLane.push(card); else toLane.splice(newIdx, 0, card);
   saveState(); renderBoard(); refreshFinalText(true);
   playSuccessEffect(to);
 }
 
-/* ---------- تنسيق التقرير النهائي (كما طلبت تماماً) ---------- */
+/* ---------- 3. بناء التقرير النهائي (التنسيق المطلوب) ---------- */
 function buildReportText() {
   const f = state.form;
   const lines = [];
@@ -148,16 +151,17 @@ function buildReportText() {
   return lines.join("\n");
 }
 
-/* ---------- وظائف الـ UI والرسم ---------- */
+/* ---------- 4. وظائف واجهة المستخدم ---------- */
 function renderCard(laneId, card) {
   const el = document.createElement("div");
   el.className = "unitCard";
   el.draggable = true;
-  el.innerHTML = `<div class="unitMain"><input class="unitInput" value="${card.text}"></div>
-                  <div class="unitBtns">
-                    <button class="iconBtn move-fast">⇄</button>
-                    <button class="iconBtn danger">×</button>
-                  </div>`;
+  el.innerHTML = `
+    <div class="unitMain"><input class="unitInput" value="${card.text}"></div>
+    <div class="unitBtns">
+      <button class="iconBtn move-fast">⇄</button>
+      <button class="iconBtn danger">×</button>
+    </div>`;
 
   el.addEventListener("dragstart", () => {
     dragging = { cardId: card.id, fromLane: laneId };
@@ -191,14 +195,23 @@ function loadState() {
 function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 let state = loadState();
 
+function refreshFinalText(force = false) {
+  const ta = $("#finalText");
+  if (ta && (force || document.activeElement !== ta)) ta.value = buildReportText();
+}
+
 function bindUI() {
   const fields = ["opsName", "opsDeputy", "leaders", "officers", "ncos", "periodOfficer", "notes", "handoverTo"];
-  fields.forEach(f => { if ($("#" + f)) $("#" + f).oninput = (e) => { state.form[f] = e.target.value; saveState(); refreshFinalText(); }; });
+  fields.forEach(f => { 
+    const el = $("#" + f);
+    if (el) el.oninput = (e) => { state.form[f] = e.target.value; saveState(); refreshFinalText(); }; 
+  });
   $("#btnStart").onclick = () => { state.form.recvTime = nowEnglish(); renderAll(); };
   $("#btnEnd").onclick = () => { state.form.handoverTime = nowEnglish(); renderAll(); };
   $("#btnCopyReport").onclick = async () => { await navigator.clipboard.writeText($("#finalText").value); toast("تم النسخ!"); };
   $("#btnAddExtracted").onclick = () => addExtractedLinesToLane("great_ocean");
   $("#sheetClose").onclick = () => $("#sheetOverlay").classList.remove("show");
+  $("#btnReset").onclick = () => { if(confirm("حذف كل البيانات؟")){ state = loadState(); localStorage.clear(); location.reload(); }};
 }
 
 function renderAll() {
@@ -207,13 +220,6 @@ function renderAll() {
   renderBoard(); refreshFinalText(true);
 }
 
-function toast(m) { const t = $("#toast"); if(t){ t.textContent = m; t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 2000); } }
-
-document.addEventListener("DOMContentLoaded", () => {
-  bindUI(); renderAll();
-  setTimeout(() => $("#intro")?.remove(), 3000);
-});
-
 function openQuickMove(cardId, currentLaneId) {
   const overlay = $("#sheetOverlay");
   const grid = $("#sheetGrid");
@@ -221,8 +227,25 @@ function openQuickMove(cardId, currentLaneId) {
   LANES.forEach(lane => {
     const btn = document.createElement("button");
     btn.className = "primary"; btn.textContent = lane.title;
-    btn.onclick = () => { moveCardToPosition(cardId, currentLaneId, lane.id, 0); overlay.classList.remove("show"); };
+    btn.onclick = () => { moveCardToPosition(cardId, currentLaneId, lane.id, -1); overlay.classList.remove("show"); };
     grid.appendChild(btn);
   });
   overlay.classList.add("show");
 }
+
+function toast(m) { const t = $("#toast"); if(t){ t.textContent = m; t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 2000); } }
+
+// حقن التنسيقات الإضافية للـ Placeholder والتأثيرات
+const style = document.createElement('style');
+style.innerHTML = `
+  .unit-placeholder { height: 44px; background: rgba(216, 178, 74, 0.15); border: 2px dashed var(--gold); border-radius: 8px; margin: 4px 0; pointer-events: none; }
+  .unitCard.dragging { opacity: 0.2; transform: scale(0.98); }
+  .laneBody.drag-over { background: rgba(216, 178, 74, 0.03); border-radius: 0 0 12px 12px; }
+  .lane-active-effect { box-shadow: 0 0 20px var(--gold) !important; transition: box-shadow 0.3s ease; }
+`;
+document.head.appendChild(style);
+
+document.addEventListener("DOMContentLoaded", () => {
+  bindUI(); renderAll();
+  setTimeout(() => $("#intro")?.remove(), 3000);
+});
