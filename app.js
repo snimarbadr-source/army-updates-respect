@@ -10,9 +10,9 @@ const LANES = [
   { id: "paleto", title: "وحدات نقاط شلال بوليتو" },
 ];
 
-/* ---------- التحسين المطلوب: تفكيك النصوص عند الإضافة ---------- */
+/* ---------- 1. معالجة النصوص المستخرجة ---------- */
 function processInputToLines(rawText) {
-  // هذا السطر يقوم بتحويل الفواصل (,) إلى أسطر جديدة ليتم معاملة كل كود كوحدة منفصلة
+  // فصل الأكواد سواء كانت بفاصلة أو سطر جديد
   return rawText
     .replace(/,/g, '\n') 
     .split('\n')
@@ -23,21 +23,22 @@ function processInputToLines(rawText) {
 function addExtractedLinesToLane(laneId) {
   const ta = $("#extractedList");
   const raw = ta?.value || "";
-  // تعديل: الآن سيفهم أن الكود بعد الفاصلة هو وحدة جديدة
-  const lines = processInputToLines(raw).map(normalizeExtractLine).filter(Boolean);
+  const lines = processInputToLines(raw).filter(Boolean);
   
   if (!lines.length) { toast("لا يوجد أكواد لإضافتها.", "تنبيه"); return; }
   
-  for (let i = lines.length - 1; i >= 0; i--) {
-    state.lanes[laneId].unshift({ id: uid(), text: lines[i] });
-  }
+  lines.forEach(line => {
+    state.lanes[laneId].push({ id: uid(), text: line });
+  });
+  
   saveState();
   renderBoard();
   refreshFinalText(true);
-  toast(`تمت إضافة ${lines.length} وحدة منفصلة.`, "نجاح");
+  playPulseEffect(laneId); // تأثير بصري
+  toast(`تمت إضافة ${lines.length} وحدة.`, "نجاح");
 }
 
-/* ---------- دالة بناء التقرير: الأكواد تحت الاسم مباشرة ---------- */
+/* ---------- 2. بناء التقرير النهائي (تنسيق سنمار) ---------- */
 function buildReportText() {
   const f = state.form;
   const lines = [];
@@ -60,13 +61,9 @@ function buildReportText() {
     const units = state.lanes[lane.id].map(c => (c.text || "").trim()).filter(Boolean);
     const codesString = units.join(", ");
     
-    lines.push(`| ${lane.title} |`); // العنوان في سطر
-    if (codesString) {
-      lines.push(codesString); // الأكواد تحتها مباشرة في سطر جديد
-    } else {
-      lines.push("-"); // إذا كانت فارغة
-    }
-    lines.push(""); // سطر فارغ للفصل بين الأقسام
+    lines.push(`| ${lane.title} |`); 
+    lines.push(codesString || "-"); 
+    lines.push(""); 
   }
 
   lines.push("الملاحظات :");
@@ -79,36 +76,75 @@ function buildReportText() {
   return lines.join("\n");
 }
 
-/* ---------- باقي الوظائف الأساسية (بدون تغيير لضمان السحب والإفلات) ---------- */
-function uid() { return (crypto?.randomUUID?.() || ("u_" + Math.random().toString(16).slice(2) + Date.now().toString(16))); }
-function nowEnglish() { return new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }); }
-function normalizeTimeString(v) { 
-  const m = (v || "").match(/(\d{1,2}:\d{2})(?::\d{2})?\s*(AM|PM)?/i);
-  return m ? `${m[1]}${m[2] ? " " + m[2].toUpperCase() : ""}` : v;
+/* ---------- 3. السحب والإفلات مع التأثير البصري ---------- */
+function playPulseEffect(laneId) {
+  const el = document.querySelector(`.lane[data-lane-id="${laneId}"]`);
+  if (el) {
+    el.style.boxShadow = "0 0 20px var(--gold)";
+    el.style.transition = "box-shadow 0.3s ease";
+    setTimeout(() => { el.style.boxShadow = "none"; }, 500);
+  }
 }
-function dashList(t) { const a = (t || "").split("\n").map(s => s.trim()).filter(Boolean); return a.join(" - "); }
-function normalizeExtractLine(s) { return s.replace(/^[\-•\u2022]+\s*/g, "").trim(); }
 
-function defaultState() {
-  return {
-    form: { opsName: "", opsDeputy: "", leaders: "", officers: "", ncos: "", periodOfficer: "", notes: "", recvTime: "", handoverTime: "", handoverTo: "" },
-    lanes: { heli: [], great_ocean: [], sandy: [], paleto: [] },
-    ui: { extractedList: "" }
+function moveCard(id, from, to) {
+  if (from === to) return;
+  const idx = state.lanes[from].findIndex(c => c.id === id);
+  if (idx === -1) return;
+  const [card] = state.lanes[from].splice(idx, 1);
+  state.lanes[to].unshift(card);
+  saveState();
+  renderBoard();
+  refreshFinalText(true);
+  playPulseEffect(to); // تشغيل التنبيه البصري
+}
+
+/* ---------- 4. زر الاختصار (القائمة السريعة) ---------- */
+function openQuickMove(cardId, currentLaneId) {
+  const overlay = $("#sheetOverlay");
+  const grid = $("#sheetGrid");
+  if (!overlay || !grid) return;
+
+  grid.innerHTML = "";
+  LANES.forEach(lane => {
+    const btn = document.createElement("button");
+    btn.className = "primary";
+    btn.textContent = lane.title;
+    btn.onclick = () => {
+      moveCard(cardId, currentLaneId, lane.id);
+      overlay.classList.remove("show");
+    };
+    grid.appendChild(btn);
+  });
+  overlay.classList.add("show");
+}
+
+/* ---------- 5. رسم اللوحة والوحدات ---------- */
+function renderCard(laneId, card) {
+  const el = document.createElement("div");
+  el.className = "unitCard";
+  el.innerHTML = `
+    <div class="dragHandle" draggable="true"><div class="dots"></div></div>
+    <div class="unitMain"><input class="unitInput" value="${card.text}"></div>
+    <div class="unitBtns">
+      <button class="iconBtn move-fast" title="نقل سريع">⇄</button>
+      <button class="iconBtn danger">×</button>
+    </div>
+  `;
+  
+  const input = el.querySelector(".unitInput");
+  input.oninput = () => { card.text = input.value; saveState(); refreshFinalText(); };
+  
+  const handle = el.querySelector(".dragHandle");
+  handle.ondragstart = () => { dragging = { cardId: card.id, fromLane: laneId }; };
+  
+  el.querySelector(".move-fast").onclick = () => openQuickMove(card.id, laneId);
+  
+  el.querySelector(".danger").onclick = () => { 
+    state.lanes[laneId] = state.lanes[laneId].filter(c => c.id !== card.id);
+    saveState(); renderBoard(); refreshFinalText(true);
   };
+  return el;
 }
-
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultState();
-    const parsed = JSON.parse(raw);
-    for (const lane of LANES) { if (!Array.isArray(parsed.lanes[lane.id])) parsed.lanes[lane.id] = []; }
-    return parsed;
-  } catch { return defaultState(); }
-}
-
-function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
-let state = loadState();
 
 function renderBoard() {
   const board = $("#board"); if (!board) return;
@@ -116,6 +152,7 @@ function renderBoard() {
   for (const lane of LANES) {
     const laneEl = document.createElement("div");
     laneEl.className = "lane";
+    laneEl.dataset.laneId = lane.id;
     laneEl.innerHTML = `<div class="laneHeader"><div class="laneTitle">${lane.title}</div><div class="laneCount">${state.lanes[lane.id].length}</div></div>`;
     const body = document.createElement("div");
     body.className = "laneBody";
@@ -130,34 +167,28 @@ function renderBoard() {
   }
 }
 
+/* ---------- وظائف أساسية ---------- */
 let dragging = { cardId: null, fromLane: null };
-function renderCard(laneId, card) {
-  const el = document.createElement("div");
-  el.className = "unitCard";
-  el.innerHTML = `<div class="dragHandle" draggable="true"><div class="dots"></div></div>
-                  <div class="unitMain"><input class="unitInput" value="${card.text}"></div>
-                  <button class="iconBtn danger">×</button>`;
-  
-  const input = el.querySelector(".unitInput");
-  input.oninput = () => { card.text = input.value; saveState(); refreshFinalText(); };
-  
-  const handle = el.querySelector(".dragHandle");
-  handle.ondragstart = () => { dragging = { cardId: card.id, fromLane: laneId }; };
-  
-  el.querySelector(".danger").onclick = () => { 
-    state.lanes[laneId] = state.lanes[laneId].filter(c => c.id !== card.id);
-    saveState(); renderBoard(); refreshFinalText(true);
+function uid() { return (crypto?.randomUUID?.() || ("u_" + Math.random().toString(16).slice(2) + Date.now().toString(16))); }
+function nowEnglish() { return new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }); }
+function dashList(t) { return (t || "").split("\n").map(s => s.trim()).filter(Boolean).join(" - "); }
+
+function defaultState() {
+  return {
+    form: { opsName: "", opsDeputy: "", leaders: "", officers: "", ncos: "", periodOfficer: "", notes: "", recvTime: "", handoverTime: "", handoverTo: "" },
+    lanes: { heli: [], great_ocean: [], sandy: [], paleto: [] }
   };
-  return el;
 }
 
-function moveCard(id, from, to) {
-  if (from === to) return;
-  const idx = state.lanes[from].findIndex(c => c.id === id);
-  const [card] = state.lanes[from].splice(idx, 1);
-  state.lanes[to].unshift(card);
-  saveState(); renderBoard(); refreshFinalText(true);
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : defaultState();
+  } catch { return defaultState(); }
 }
+
+function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+let state = loadState();
 
 function refreshFinalText(force = false) {
   const ta = $("#finalText");
@@ -165,40 +196,32 @@ function refreshFinalText(force = false) {
 }
 
 function bindUI() {
-  $("#opsName").oninput = (e) => { state.form.opsName = e.target.value; saveState(); refreshFinalText(); };
-  $("#opsDeputy").oninput = (e) => { state.form.opsDeputy = e.target.value; saveState(); refreshFinalText(); };
-  $("#leaders").oninput = (e) => { state.form.leaders = e.target.value; saveState(); refreshFinalText(); };
-  $("#officers").oninput = (e) => { state.form.officers = e.target.value; saveState(); refreshFinalText(); };
-  $("#ncos").oninput = (e) => { state.form.ncos = e.target.value; saveState(); refreshFinalText(); };
-  $("#periodOfficer").oninput = (e) => { state.form.periodOfficer = e.target.value; saveState(); refreshFinalText(); };
-  $("#notes").oninput = (e) => { state.form.notes = e.target.value; saveState(); refreshFinalText(); };
-  
+  const fields = ["opsName", "opsDeputy", "leaders", "officers", "ncos", "periodOfficer", "notes", "handoverTo"];
+  fields.forEach(f => {
+    const el = $("#" + f);
+    if (el) el.oninput = (e) => { state.form[f] = e.target.value; saveState(); refreshFinalText(); };
+  });
+
   $("#btnStart").onclick = () => { state.form.recvTime = nowEnglish(); renderAll(); };
   $("#btnEnd").onclick = () => { state.form.handoverTime = nowEnglish(); renderAll(); };
-  $("#btnCopyReport").onclick = async () => { await navigator.clipboard.writeText($("#finalText").value); toast("تم النسخ!"); };
+  $("#btnCopyReport").onclick = async () => { await navigator.clipboard.writeText($("#finalText").value); toast("تم نسخ التقرير!"); };
   $("#btnReset").onclick = () => { if(confirm("حذف الكل؟")){ state = defaultState(); saveState(); renderAll(); } };
   $("#btnAddUnit").onclick = () => { state.lanes.heli.unshift({id: uid(), text: ""}); renderBoard(); };
   $("#btnAddExtracted").onclick = () => addExtractedLinesToLane("great_ocean");
+  $("#sheetClose").onclick = () => $("#sheetOverlay").classList.remove("show");
 }
 
 function renderAll() {
-  $("#opsName").value = state.form.opsName;
-  $("#opsDeputy").value = state.form.opsDeputy;
-  $("#leaders").value = state.form.leaders;
-  $("#officers").value = state.form.officers;
-  $("#ncos").value = state.form.ncos;
-  $("#periodOfficer").value = state.form.periodOfficer;
-  $("#notes").value = state.form.notes;
-  $("#recvTime").value = state.form.recvTime;
-  $("#handoverTime").value = state.form.handoverTime;
+  const fields = ["opsName", "opsDeputy", "leaders", "officers", "ncos", "periodOfficer", "notes", "handoverTo", "recvTime", "handoverTime"];
+  fields.forEach(f => { if ($("#" + f)) $("#" + f).value = state.form[f] || ""; });
   renderBoard();
   refreshFinalText(true);
 }
 
-function toast(m) { const t = $("#toast"); t.textContent = m; t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 2000); }
+function toast(m) { const t = $("#toast"); if(t){ t.textContent = m; t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 2000); } }
 
 document.addEventListener("DOMContentLoaded", () => {
   bindUI();
   renderAll();
-  setTimeout(() => $("#intro")?.remove(), 3000);
+  setTimeout(() => $("#intro")?.remove(), 3500);
 });
