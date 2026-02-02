@@ -140,7 +140,12 @@ function defaultState() {
       handoverTime: "",
       handoverTo: "",
     },
-    lanes: { heli: [], great_ocean: [], sandy: [], paleto: [] },
+    lanes: {
+      heli: [],
+      great_ocean: [],
+      sandy: [],
+      paleto: [],
+    },
     ui: { lastSelectedCardId: null, extractedList: "" },
   };
 }
@@ -150,8 +155,7 @@ function loadState() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultState();
     const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return defaultState();
-    if (!parsed.lanes) return defaultState();
+    if (!parsed || typeof parsed !== "object" || !parsed.lanes) return defaultState();
     for (const lane of LANES) {
       if (!Array.isArray(parsed.lanes[lane.id])) parsed.lanes[lane.id] = [];
     }
@@ -308,20 +312,23 @@ function buildReportText() {
   lines.push(`اسم العمليات : ${(f.opsName || "").trim()}`);
   lines.push(`نائب العمليات : ${(f.opsDeputy || "").trim()}`);
   lines.push("");
+
   lines.push(`قيادات : ${dashList(f.leaders) || "-"}`);
   lines.push(`ضباط : ${dashList(f.officers) || "-"}`);
   lines.push(`ضباط صف : ${dashList(f.ncos) || "-"}`);
   lines.push("");
+
   lines.push(`مسؤول الفتره : ${dashList(f.periodOfficer) || "-"}`);
   lines.push("");
+
   lines.push("توزيع الوحدات :");
   lines.push("");
 
-  // عرض الأكواد بالعرض مفصولة بفاصلة
+  // هنا التعديل لعرض الأكواد بالعرض مفصولة بفاصلة لكل قسم
   for (const lane of LANES) {
-    const names = state.lanes[lane.id].map(c => (c.text || "").trim()).filter(Boolean);
-    const codesLine = names.join(", ");
-    lines.push(`| ${lane.title} | ${codesLine || "-"}`);
+    const units = state.lanes[lane.id].map(c => (c.text || "").trim()).filter(Boolean);
+    const codes = units.join(", ");
+    lines.push(`| ${lane.title} | ${codes || "-"}`);
   }
 
   lines.push("");
