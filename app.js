@@ -1,13 +1,15 @@
-/* Army Ops Update (Full Version)
-  - الذكاء الاصطناعي في توزيع الوحدات (فصل تلقائي)
-  - تأثير التلميح البصري (Placeholder) أثناء السحب
-  - تنسيق التقرير النهائي حسب طلب سنمار
+/* تحديث مركز العمليات - النسخة النهائية المطورة لسنمار
+  المميزات: 
+  - توزيع الوحدات بشكل منفصل (بناءً على مسافة، فاصلة، أو سطر جديد).
+  - تأثير "خيال الوحدة" (Placeholder) قبل الإفلات لتحديد الموضع.
+  - زر نقل سريع للوحدات.
+  - حل مشكلة اختفاء الانترو تلقائياً.
 */
 
 "use strict";
 
 const $ = (sel) => document.querySelector(sel);
-const STORAGE_KEY = "army_ops_update_v3_final";
+const STORAGE_KEY = "army_ops_final_v4";
 
 const LANES = [
   { id: "heli", title: "وحدات هيلي" },
@@ -16,32 +18,24 @@ const LANES = [
   { id: "paleto", title: "وحدات نقاط شلال بوليتو" },
 ];
 
-/* ---------- 1. معالجة النص المستخرج (الفصل الذكي) ---------- */
+/* ---------- 1. معالجة النصوص والتوزيع المنفصل ---------- */
 function processInputToUnits(rawText) {
   if (!rawText) return [];
-  
-  // استبدال الفواصل العربية والإنجليزية بمسافات لتوحيد المعالجة
+  // استبدال الفواصل (العربية والإنجليزية) بمسافات لضمان التوزيع بالعرض أو الطول
   let cleanText = rawText.replace(/،/g, ' ').replace(/,/g, ' ');
-  
-  // التقسيم بناءً على: (مسافة واحدة أو أكثر) أو (سطر جديد)
-  // هذا يضمن فصل الأكواد سواء كانت بالطول أو بالعرض
-  return cleanText
-    .split(/\s+/) 
-    .map(s => s.trim())
-    .filter(s => s.length > 0); 
+  // التقسيم بناءً على أي مسافة أو سطر جديد
+  return cleanText.split(/\s+/).map(s => s.trim()).filter(s => s.length > 0);
 }
 
 function addExtractedLinesToLane(laneId) {
   const ta = $("#extractedList");
-  const raw = ta?.value || "";
-  const unitCodes = processInputToUnits(raw);
+  const unitCodes = processInputToUnits(ta?.value || "");
   
   if (unitCodes.length === 0) {
-    toast("يرجى إدخال أكواد صحيحة", "تنبيه");
+    toast("يرجى إدخال أكواد صحيحة أولاً", "تنبيه");
     return;
   }
 
-  // إضافة كل كود كبطاقة مستقلة
   unitCodes.forEach(code => {
     state.lanes[laneId].push({ id: uid(), text: code });
   });
@@ -50,11 +44,11 @@ function addExtractedLinesToLane(laneId) {
   renderBoard();
   refreshFinalText(true);
   playSuccessEffect(laneId);
-  toast(`تم توزيع ${unitCodes.length} وحدة بشكل منفصل`, "نجاح");
-  ta.value = ""; // مسح المربع بعد التوزيع لراحة المستخدم
+  ta.value = ""; 
+  toast(`تم توزيع ${unitCodes.length} وحدة بنجاح`, "توزيع");
 }
 
-/* ---------- 2. نظام السحب المتطور (المعاينة قبل الإفلات) ---------- */
+/* ---------- 2. نظام السحب والإفلات مع المعاينة (Placeholder) ---------- */
 let dragging = { cardId: null, fromLane: null };
 const placeholder = document.createElement("div");
 placeholder.className = "unit-placeholder";
@@ -117,11 +111,10 @@ function moveCardToPosition(id, from, to, newIdx) {
   playSuccessEffect(to);
 }
 
-/* ---------- 3. بناء التقرير النهائي (التنسيق المطلوب) ---------- */
+/* ---------- 3. بناء التقرير النهائي ---------- */
 function buildReportText() {
   const f = state.form;
   const lines = [];
-
   lines.push(`اسم العمليات : ${(f.opsName || "").trim()}`);
   lines.push(`نائب العمليات : ${(f.opsDeputy || "").trim()}`);
   lines.push("");
@@ -147,11 +140,10 @@ function buildReportText() {
   lines.push(`وقت الاستلام : ${(f.recvTime || "").trim()}`);
   lines.push(`وقت التسليم : ${(f.handoverTime || "").trim()}`);
   lines.push(`تم التسليم إلى : ${(f.handoverTo || "").trim()}`);
-
   return lines.join("\n");
 }
 
-/* ---------- 4. وظائف واجهة المستخدم ---------- */
+/* ---------- 4. وظائف البطاقة والواجهة ---------- */
 function renderCard(laneId, card) {
   const el = document.createElement("div");
   el.className = "unitCard";
@@ -169,7 +161,6 @@ function renderCard(laneId, card) {
     placeholder.style.height = el.offsetHeight + "px";
   });
   el.addEventListener("dragend", () => { el.classList.remove("dragging"); placeholder.remove(); });
-  
   el.querySelector(".unitInput").oninput = (e) => { card.text = e.target.value; saveState(); refreshFinalText(); };
   el.querySelector(".move-fast").onclick = () => openQuickMove(card.id, laneId);
   el.querySelector(".danger").onclick = () => { 
@@ -211,7 +202,7 @@ function bindUI() {
   $("#btnCopyReport").onclick = async () => { await navigator.clipboard.writeText($("#finalText").value); toast("تم النسخ!"); };
   $("#btnAddExtracted").onclick = () => addExtractedLinesToLane("great_ocean");
   $("#sheetClose").onclick = () => $("#sheetOverlay").classList.remove("show");
-  $("#btnReset").onclick = () => { if(confirm("حذف كل البيانات؟")){ state = loadState(); localStorage.clear(); location.reload(); }};
+  $("#btnReset").onclick = () => { if(confirm("حذف كل البيانات؟")){ localStorage.removeItem(STORAGE_KEY); location.reload(); }};
 }
 
 function renderAll() {
@@ -235,17 +226,28 @@ function openQuickMove(cardId, currentLaneId) {
 
 function toast(m) { const t = $("#toast"); if(t){ t.textContent = m; t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 2000); } }
 
-// حقن التنسيقات الإضافية للـ Placeholder والتأثيرات
+/* ---------- 5. حل مشكلة الانترو + التنسيق التفاعلي ---------- */
 const style = document.createElement('style');
 style.innerHTML = `
   .unit-placeholder { height: 44px; background: rgba(216, 178, 74, 0.15); border: 2px dashed var(--gold); border-radius: 8px; margin: 4px 0; pointer-events: none; }
-  .unitCard.dragging { opacity: 0.2; transform: scale(0.98); }
+  .unitCard.dragging { opacity: 0.2; }
   .laneBody.drag-over { background: rgba(216, 178, 74, 0.03); border-radius: 0 0 12px 12px; }
   .lane-active-effect { box-shadow: 0 0 20px var(--gold) !important; transition: box-shadow 0.3s ease; }
 `;
 document.head.appendChild(style);
 
 document.addEventListener("DOMContentLoaded", () => {
-  bindUI(); renderAll();
-  setTimeout(() => $("#intro")?.remove(), 3000);
+  bindUI();
+  renderAll();
+
+  // حل مشكلة عدم اختفاء الانترو
+  const intro = $("#intro");
+  if (intro) {
+    setTimeout(() => {
+      intro.style.opacity = "0";
+      intro.style.transition = "opacity 0.8s ease";
+      setTimeout(() => intro.remove(), 800);
+    }, 3000);
+    intro.onclick = () => intro.remove();
+  }
 });
