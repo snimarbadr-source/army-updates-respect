@@ -8,13 +8,17 @@
 
 const $ = (sel) => document.querySelector(sel);
 
+// مفتاح التخزين المحلي
 const STORAGE_KEY = "army_ops_update_v3";
 
+// تعريف اللوحات (تأكد أن ID يطابق الموجود في HTML)
 const LANES = [
-  { id: "heli", title: "وحدات هيلي" },
-  { id: "great_ocean", title: "وحدات نقاط قريت اوشن" },
-  { id: "sandy", title: "وحدات نقاط ساندي" },
-  { id: "paleto", title: "وحدات نقاط شلال بوليتو" },
+  { id: "free", title: "حره" },
+  { id: "heli", title: "هيلي" },
+  { id: "great_ocean", title: "نقطة قريت اوشن" },
+  { id: "sandy", title: "نقطة ساندي" },
+  { id: "paleto", title: "نقطة شلال بوليتو" },
+  { id: "hq", title: "المقر" }
 ];
 
 function uid() {
@@ -72,7 +76,8 @@ function addUnit() {
   const codeInput = $("#unitCodeInput");
   const code = codeInput.value.trim();
   if (!code) return;
-  const newUnit = { id: uid(), code, laneId: "heli" };
+  // افتراضياً تذهب لأول لوحة (حره)
+  const newUnit = { id: uid(), code, laneId: "free" };
   state.units.push(newUnit);
   codeInput.value = "";
   saveState();
@@ -94,7 +99,7 @@ function moveUnit(unitId, newLaneId) {
   }
 }
 
-/* ---------- Render ---------- */
+/* ---------- Render (لوحات التوزيع) ---------- */
 
 function renderBoard() {
   LANES.forEach(lane => {
@@ -110,12 +115,14 @@ function renderBoard() {
         <span>${unit.code}</span>
         <button class="delete-btn" onclick="removeUnit('${unit.id}')">×</button>
       `;
+      // السحب والإفلات
       el.addEventListener("dragstart", (e) => {
         e.dataTransfer.setData("text/plain", unit.id);
         el.classList.add("dragging");
       });
       el.addEventListener("dragend", () => el.classList.remove("dragging"));
       
+      // النقر للموبايل
       el.addEventListener("click", (e) => {
         if (e.target.classList.contains("delete-btn")) return;
         showMoveSheet(unit.id);
@@ -131,7 +138,7 @@ function updateFinalReport() {
   if (ta) ta.value = buildReportText();
 }
 
-// الدالة المسؤولة عن بناء النص النهائي
+/* النتيجة النهائية - الأكواد بالعرض */
 function buildReportText() {
   const f = state.form;
   let lines = [];
@@ -148,7 +155,7 @@ function buildReportText() {
   lines.push(`توزيع الوحدات :`);
   lines.push(``);
 
-  // التعديل: هنا يتم جمع الأكواد في سطر واحد مفصولة بفاصلة
+  // عرض الأكواد بالعرض مفصولة بفاصلة لكل لوحة
   LANES.forEach(lane => {
     const unitsInLane = state.units.filter(u => u.laneId === lane.id);
     const codesText = unitsInLane.map(u => u.code).join(", ");
@@ -190,19 +197,18 @@ async function copyReport() {
     await navigator.clipboard.writeText(text);
     toast("تم نسخ التقرير للحافظة.", "نسخ");
   } catch {
-    const taBox = document.createElement("textarea");
-    taBox.value = text;
-    document.body.appendChild(taBox);
-    taBox.select();
+    const tmp = document.createElement("textarea");
+    tmp.value = text;
+    document.body.appendChild(tmp);
+    tmp.select();
     document.execCommand("copy");
-    taBox.remove();
+    tmp.remove();
     toast("تم نسخ التقرير للحافظة.", "نسخ");
   }
 }
 
 function resetAll() {
-  const ok = confirm("متأكد؟ سيتم حذف البيانات المحفوظة وإعادة الضبط.");
-  if (!ok) return;
+  if (!confirm("متأكد؟ سيتم حذف البيانات وإعادة الضبط.")) return;
   state = defaultState();
   saveState();
   bindForm();
@@ -224,6 +230,7 @@ function bindUI() {
     if (el) { el.value = nowEnglish(); state.form.handoverTime = el.value; saveState(); }
   });
 
+  // تفعيل مناطق الإفلات
   LANES.forEach(lane => {
     const zone = $(`#lane-${lane.id}`);
     zone?.addEventListener("dragover", (e) => e.preventDefault());
@@ -239,8 +246,7 @@ function bindUI() {
 let activeUnitId = null;
 function showMoveSheet(id) {
   activeUnitId = id;
-  const sheet = $("#sheetOverlay");
-  sheet.classList.add("show");
+  $("#sheetOverlay").classList.add("show");
 }
 function hideMoveSheet() {
   $("#sheetOverlay").classList.remove("show");
