@@ -8,7 +8,6 @@
 
 const $ = (sel) => document.querySelector(sel);
 
-// bump key to avoid UI mismatches with older stored state
 const STORAGE_KEY = "army_ops_update_v3";
 
 const LANES = [
@@ -117,7 +116,6 @@ function renderBoard() {
       });
       el.addEventListener("dragend", () => el.classList.remove("dragging"));
       
-      // Mobile tap to move
       el.addEventListener("click", (e) => {
         if (e.target.classList.contains("delete-btn")) return;
         showMoveSheet(unit.id);
@@ -133,9 +131,7 @@ function updateFinalReport() {
   if (ta) ta.value = buildReportText();
 }
 
-/**
- * التعديل المطلوب: عرض الأكواد بالعرض لكل نقطة
- */
+// الدالة المسؤولة عن بناء النص النهائي
 function buildReportText() {
   const f = state.form;
   let lines = [];
@@ -152,7 +148,7 @@ function buildReportText() {
   lines.push(`توزيع الوحدات :`);
   lines.push(``);
 
-  // التعديل هنا: جلب الوحدات وعرض أكوادها بجانب اسم القسم
+  // التعديل: هنا يتم جمع الأكواد في سطر واحد مفصولة بفاصلة
   LANES.forEach(lane => {
     const unitsInLane = state.units.filter(u => u.laneId === lane.id);
     const codesText = unitsInLane.map(u => u.code).join(", ");
@@ -228,7 +224,6 @@ function bindUI() {
     if (el) { el.value = nowEnglish(); state.form.handoverTime = el.value; saveState(); }
   });
 
-  // Drag & Drop Setup
   LANES.forEach(lane => {
     const zone = $(`#lane-${lane.id}`);
     zone?.addEventListener("dragover", (e) => e.preventDefault());
@@ -269,17 +264,13 @@ function setupSheet() {
 
 /* ---------- Init ---------- */
 document.addEventListener("DOMContentLoaded", () => {
-  // 1. Load
   loadState();
-  // 2. Bind
   bindForm();
   bindUI();
   setupSheet();
-  // 3. Render
   renderBoard();
   updateFinalReport();
 
-  // Intro fade out
   setTimeout(() => {
     const intro = $("#intro");
     if (intro) {
