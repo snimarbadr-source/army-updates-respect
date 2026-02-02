@@ -1,15 +1,15 @@
-/* تحديث مركز العمليات - النسخة العسكرية الاحترافية (سنمار V6)
-  المميزات الجديدة:
-  - أنيميشن "نبض الرادار" و "مسح الليزر" بجانب العناوين.
-  - إصلاح زر إضافة وحدة (+) وتوزيع الأكواد المنفصل.
-  - تأثير Placeholder ومعاينة عند السحب.
-  - نظام إخفاء الانترو الذكي.
+/* تحديث مركز العمليات - النسخة العسكرية الفاخرة (سنمار V7)
+  المميزات:
+  - شعارات عسكرية متحركة (النسر التكتيكي ودرع العمليات) حول العنوان.
+  - أنيميشن "الرادار" و "المسح الليزري" للعناوين.
+  - إصلاح زر الإضافة (+) والتوزيع المنفصل الذكي.
+  - معاينة السحب (Placeholder) وحل مشكلة الانترو.
 */
 
 "use strict";
 
 const $ = (sel) => document.querySelector(sel);
-const STORAGE_KEY = "army_ops_final_v6";
+const STORAGE_KEY = "army_ops_final_v7";
 
 const LANES = [
   { id: "heli", title: "وحدات هيلي" },
@@ -31,7 +31,59 @@ function loadState() {
 
 function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 
-/* ---------- 2. إضافة الوحدات (فصل ذكي) ---------- */
+/* ---------- 2. إضافة الشعارات والأنيميشن (تعديل الـ UI برمجياً) ---------- */
+function injectMilitaryUI() {
+  // إضافة الشعارات بجانب العنوان الرئيسي
+  const mainTitleContainer = $(".headerMain"); // تأكد أن هذا هو كلاس العنوان الرئيسي عندك
+  if (mainTitleContainer) {
+    mainTitleContainer.innerHTML = `
+      <div class="military-logo logo-left"></div>
+      <h1 class="main-title">تحديث مركز العمليات</h1>
+      <div class="military-logo logo-right"></div>
+    `;
+  }
+
+  const style = document.createElement('style');
+  style.innerHTML = `
+    /* تصميم الشعارات العسكرية */
+    .headerMain { display: flex; align-items: center; justify-content: center; gap: 30px; padding: 20px; }
+    .military-logo {
+      width: 60px; height: 60px;
+      background: url('https://cdn-icons-png.flaticon.com/512/2590/2590525.png'); /* أيقونة درع عسكري */
+      background-size: contain; background-repeat: no-repeat;
+      filter: drop-shadow(0 0 10px var(--gold));
+      animation: logo-pulse 2s infinite ease-in-out;
+    }
+    .logo-right { transform: scaleX(-1); }
+    
+    @keyframes logo-pulse {
+      0%, 100% { transform: scale(1); filter: drop-shadow(0 0 5px var(--gold)); }
+      50% { transform: scale(1.1); filter: drop-shadow(0 0 20px var(--gold)); }
+    }
+
+    /* أنيميشن الرادار للعناوين الفرعية */
+    .radar-container { position: relative; width: 18px; height: 18px; margin-left: 10px; display: inline-flex; align-items: center; justify-content: center; }
+    .radar-dot { width: 4px; height: 4px; background: var(--gold); border-radius: 50%; z-index: 2; }
+    .radar-pulse { position: absolute; width: 100%; height: 100%; border: 1.5px solid var(--gold); border-radius: 50%; animation: radar-anim 2s infinite linear; opacity: 0; }
+    @keyframes radar-anim { 0% { transform: scale(0.5); opacity: 1; } 100% { transform: scale(2.5); opacity: 0; } }
+
+    /* مسح الليزر */
+    .laneHeader { position: relative; overflow: hidden; }
+    .laneHeader::after {
+      content: ''; position: absolute; top: 0; left: -100%; width: 40%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(216, 178, 74, 0.3), transparent);
+      animation: laser-line 3s infinite;
+    }
+    @keyframes laser-line { 0% { left: -100%; } 100% { left: 200%; } }
+
+    .unit-placeholder { height: 44px; background: rgba(216, 178, 74, 0.1); border: 2px dashed var(--gold); border-radius: 8px; margin: 5px 0; }
+    .unitCard.dragging { opacity: 0.1; }
+    .lane-active-effect { box-shadow: 0 0 25px var(--gold) !important; transition: 0.4s; }
+  `;
+  document.head.appendChild(style);
+}
+
+/* ---------- 3. إدارة الوحدات والتوزيع المنفصل ---------- */
 function addUnit() {
   state.lanes.heli.unshift({ id: uid(), text: "" });
   saveState(); renderBoard(); refreshFinalText(true);
@@ -47,15 +99,15 @@ function processInputToUnits(rawText) {
 function addExtractedLinesToLane(laneId) {
   const ta = $("#extractedList");
   const unitCodes = processInputToUnits(ta?.value || "");
-  if (!unitCodes.length) { toast("لا توجد أكواد!", "تنبيه"); return; }
+  if (!unitCodes.length) return;
   unitCodes.forEach(code => state.lanes[laneId].push({ id: uid(), text: code }));
   saveState(); renderBoard(); refreshFinalText(true);
   playSuccessEffect(laneId);
   ta.value = ""; 
-  toast(`تم توزيع ${unitCodes.length} وحدة`, "توزيع");
+  toast(`تم توزيع ${unitCodes.length} وحدة`, "نجاح");
 }
 
-/* ---------- 3. السحب والإفلات ومعاينة الموقع ---------- */
+/* ---------- 4. السحب والإفلات واللوحة ---------- */
 let dragging = { cardId: null, fromLane: null };
 const placeholder = document.createElement("div");
 placeholder.className = "unit-placeholder";
@@ -67,7 +119,6 @@ function renderBoard() {
     const laneEl = document.createElement("div");
     laneEl.className = "lane";
     laneEl.dataset.laneId = lane.id;
-    // إضافة أيقونة الرادار المتحركة بجانب العنوان
     laneEl.innerHTML = `
       <div class="laneHeader">
         <div class="radar-container"><div class="radar-dot"></div><div class="radar-pulse"></div></div>
@@ -75,14 +126,12 @@ function renderBoard() {
         <div class="laneCount">${state.lanes[lane.id].length}</div>
       </div>
     `;
-    
     const body = document.createElement("div");
     body.className = "laneBody";
     body.dataset.laneId = lane.id;
 
     body.addEventListener("dragover", (e) => {
       e.preventDefault();
-      body.classList.add("drag-over");
       const afterElement = getDragAfterElement(body, e.clientY);
       if (afterElement == null) body.appendChild(placeholder);
       else body.insertBefore(placeholder, afterElement);
@@ -90,7 +139,6 @@ function renderBoard() {
 
     body.addEventListener("drop", (e) => {
       e.preventDefault();
-      body.classList.remove("drag-over");
       if (dragging.cardId) {
         const dropIndex = [...body.children].indexOf(placeholder);
         moveCardToPosition(dragging.cardId, dragging.fromLane, lane.id, dropIndex);
@@ -124,7 +172,7 @@ function moveCardToPosition(id, from, to, newIdx) {
   playSuccessEffect(to);
 }
 
-/* ---------- 4. التقرير والواجهة ---------- */
+/* ---------- 5. التقرير والواجهة ---------- */
 function renderCard(laneId, card) {
   const el = document.createElement("div");
   el.className = "unitCard";
@@ -155,59 +203,23 @@ function buildReportText() {
   const lines = [`اسم العمليات : ${(f.opsName || "").trim()}`, `نائب العمليات : ${(f.opsDeputy || "").trim()}`, "", `قيادات : ${dashList(f.leaders) || "-"}`, `ضباط : ${dashList(f.officers) || "-"}`, `ضباط صف : ${dashList(f.ncos) || "-"}`, "", `مسؤول الفتره : ${dashList(f.periodOfficer) || "-"}`, "", "توزيع الوحدات :", ""];
   LANES.forEach(lane => {
     const units = state.lanes[lane.id].map(c => (c.text || "").trim()).filter(Boolean);
-    lines.push(`| ${lane.title} |`);
-    lines.push(units.join(", ") || "-");
-    lines.push("");
+    lines.push(`| ${lane.title} |`, units.join(", ") || "-", "");
   });
   lines.push("الملاحظات :", (f.notes || "").trim() || "-", "", `وقت الاستلام : ${(f.recvTime || "").trim()}`, `وقت التسليم : ${(f.handoverTime || "").trim()}`, `تم التسليم إلى : ${(f.handoverTo || "").trim()}`);
   return lines.join("\n");
 }
 
-/* ---------- 5. الأنيميشن العسكري (CSS Injection) ---------- */
-const militaryStyle = document.createElement('style');
-militaryStyle.innerHTML = `
-  /* أنيميشن الرادار بجانب العناوين */
-  .radar-container { position: relative; width: 20px; height: 20px; margin-left: 10px; display: flex; align-items: center; justify-content: center; }
-  .radar-dot { width: 6px; height: 6px; background: var(--gold); border-radius: 50%; z-index: 2; }
-  .radar-pulse { 
-    position: absolute; width: 100%; height: 100%; border: 2px solid var(--gold); 
-    border-radius: 50%; animation: radar-beam 2s infinite linear; opacity: 0; 
-  }
-  @keyframes radar-beam {
-    0% { transform: scale(0.5); opacity: 1; }
-    100% { transform: scale(2.5); opacity: 0; }
-  }
-
-  /* أنيميشن مسح الليزر على العنوان */
-  .laneHeader { position: relative; overflow: hidden; }
-  .laneHeader::after {
-    content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(216, 178, 74, 0.2), transparent);
-    animation: laser-scan 4s infinite;
-  }
-  @keyframes laser-scan {
-    0% { left: -100%; }
-    100% { left: 150%; }
-  }
-
-  .unit-placeholder { height: 44px; background: rgba(216, 178, 74, 0.1); border: 2px dashed var(--gold); border-radius: 8px; margin: 4px 0; }
-  .lane-active-effect { box-shadow: 0 0 20px var(--gold) !important; transition: 0.3s; }
-  .unitCard.dragging { opacity: 0.1; }
-`;
-document.head.appendChild(militaryStyle);
-
-/* ---------- 6. ربط الـ UI والتشغيل ---------- */
+/* ---------- 6. التشغيل والربط ---------- */
 function bindUI() {
   const fields = ["opsName", "opsDeputy", "leaders", "officers", "ncos", "periodOfficer", "notes", "handoverTo"];
   fields.forEach(f => { if ($("#" + f)) $("#" + f).oninput = (e) => { state.form[f] = e.target.value; saveState(); refreshFinalText(); }; });
-  
   $("#btnAddUnit")?.addEventListener("click", addUnit);
   $("#btnStart")?.addEventListener("click", () => { state.form.recvTime = nowEnglish(); renderAll(); });
   $("#btnEnd")?.addEventListener("click", () => { state.form.handoverTime = nowEnglish(); renderAll(); });
-  $("#btnCopyReport")?.addEventListener("click", async () => { await navigator.clipboard.writeText($("#finalText").value); toast("تم نسخ التقرير!"); });
+  $("#btnCopyReport")?.addEventListener("click", async () => { await navigator.clipboard.writeText($("#finalText").value); toast("تم النسخ!"); });
   $("#btnAddExtracted")?.addEventListener("click", () => addExtractedLinesToLane("great_ocean"));
   $("#sheetClose")?.addEventListener("click", () => $("#sheetOverlay").classList.remove("show"));
-  $("#btnReset")?.addEventListener("click", () => { if(confirm("حذف البيانات؟")){ localStorage.removeItem(STORAGE_KEY); location.reload(); }});
+  $("#btnReset")?.addEventListener("click", () => { if(confirm("إعادة ضبط؟")){ localStorage.removeItem(STORAGE_KEY); location.reload(); }});
 }
 
 function renderAll() {
@@ -227,6 +239,7 @@ function openQuickMove(cardId, currentLaneId) {
   overlay.classList.add("show");
 }
 
+/* المساعدات */
 function uid() { return (crypto?.randomUUID?.() || ("u_" + Math.random().toString(16).slice(2) + Date.now().toString(16))); }
 function nowEnglish() { return new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }); }
 function dashList(t) { return (t || "").split("\n").map(s => s.trim()).filter(Boolean).join(" - "); }
@@ -240,7 +253,9 @@ function refreshFinalText(force = false) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  bindUI(); renderAll();
+  injectMilitaryUI();
+  bindUI();
+  renderAll();
   const intro = $("#intro");
   if (intro) {
     setTimeout(() => { intro.style.opacity = "0"; setTimeout(() => intro.remove(), 800); }, 3000);
