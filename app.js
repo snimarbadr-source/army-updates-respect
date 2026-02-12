@@ -11,39 +11,36 @@ const $ = (sel) => document.querySelector(sel);
 const STORAGE_KEY = "army_ops_v9_complete";
 
 // القائمة الكاملة للنقاط (القديمة + الجديدة)
-const pointsData = [
-    { id: "hotel_top", name: "نقاط وحدات اعلى الاوتيل", respect: 0 },
-    { id: "paleto_point", name: "نقاط وحدات نقطة بوليتو", respect: 0 },
-    { id: "los_point", name: "نقاط وحدات نقطة لوس", respect: 0 },
-    { id: "elec_point", name: "نقاط وحدات نقطة الكهرب", respect: 0 },
-    { id: "grapeseed_gap", name: "نقاط وحدات ثغرة قرابسيد", respect: 0 },
-    { id: "lake_gap", name: "نقاط وحدات ثغرة البحيرة", respect: 0 }
+const LANES = [
+  { id: "heli", title: "وحدات هيلي" },
+  { id: "great_ocean", title: "وحدات نقاط قريت اوشن" },
+  { id: "sandy", title: "وحدات نقاط ساندي" },
+  { id: "paleto", title: "وحدات نقاط شلال بوليتو" },
+  { id: "highway", title: "وحدات الهاي واي الشرقي" },
+  { id: "road68", title: "وحدات طريق ٦٨" },
+  { id: "general", title: "وحدات العامة" },
+  { id: "tahoe", title: "وحدات التاهو" },
+  { id: "armored", title: "وحدات المدرعه" }
 ];
 
-document.addEventListener('DOMContentLoaded', () => {
-    const container = document.getElementById('points-container');
-    
-    pointsData.forEach(point => {
-        const pointElement = document.createElement('div');
-        pointElement.className = 'point-card';
-        pointElement.innerHTML = `
-            <h3>${point.name}</h3>
-            <div class="controls">
-                <button onclick="updateRespect('${point.id}', 1)">+</button>
-                <span id="val-${point.id}">${point.respect}</span>
-                <button onclick="updateRespect('${point.id}', -1)">-</button>
-            </div>
-        `;
-        container.appendChild(pointElement);
-    });
-});
+/* ---------- 1. إدارة البيانات ---------- */
+let state = loadState();
 
-function updateRespect(id, amount) {
-    // وظيفة التحديث الأصلية
-    const element = document.getElementById(`val-${id}`);
-    let current = parseInt(element.innerText);
-    element.innerText = current + amount;
-   
+function loadState() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw) return JSON.parse(raw);
+  
+  // الحالة الافتراضية
+  const initialState = {
+    form: { opsName: "", opsDeputy: "", leaders: "", officers: "", ncos: "", periodOfficer: "", notes: "", handoverTo: "", recvTime: "", handoverTime: "" },
+    lanes: {}
+  };
+  LANES.forEach(l => initialState.lanes[l.id] = []);
+  return initialState;
+}
+
+function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
 /* ---------- 2. الواجهة والأنيميشن العسكري ---------- */
 function injectMilitaryUI() {
   const header = $(".headerMain");
@@ -95,7 +92,7 @@ function addUnit() {
   saveState(); renderBoard(); refreshFinalText(true);
   toast("تمت إضافة وحدة فارغة", "إضافة");
 }
-   
+
 function processInputToUnits(rawText) {
   if (!rawText) return [];
   let cleanText = rawText.replace(/،/g, ' ').replace(/,/g, ' ');
