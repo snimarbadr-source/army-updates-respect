@@ -11,16 +11,13 @@ const $ = (sel) => document.querySelector(sel);
 const STORAGE_KEY = "army_ops_v9_complete";
 
 // القائمة الكاملة للنقاط (القديمة + الجديدة)
-const LANES = [
-  { id: "heli", title: "وحدات هيلي" },
-  { id: "great_ocean", title: "وحدات نقاط قريت اوشن" },
-  { id: "sandy", title: "وحدات نقاط ساندي" },
-  { id: "paleto", title: "وحدات نقاط شلال بوليتو" },
-  { id: "highway", title: "وحدات الهاي واي الشرقي" },
-  { id: "road68", title: "وحدات طريق ٦٨" },
-  { id: "general", title: "وحدات العامة" },
-  { id: "tahoe", title: "وحدات التاهو" },
-  { id: "armored", title: "وحدات المدرعه" }
+const pointsData = [
+    { id: "hotel_top", name: "نقاط وحدات اعلى الاوتيل", respect: 0 },
+    { id: "paleto_point", name: "نقاط وحدات نقطة بوليتو", respect: 0 },
+    { id: "los_point", name: "نقاط وحدات نقطة لوس", respect: 0 },
+    { id: "elec_point", name: "نقاط وحدات نقطة الكهرب", respect: 0 },
+    { id: "grapeseed_gap", name: "نقاط وحدات ثغرة قرابسيد", respect: 0 },
+    { id: "lake_gap", name: "نقاط وحدات ثغرة البحيرة", respect: 0 }
 ];
 
 /* ---------- 1. إدارة البيانات ---------- */
