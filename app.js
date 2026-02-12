@@ -95,7 +95,7 @@ function addUnit() {
   saveState(); renderBoard(); refreshFinalText(true);
   toast("تمت إضافة وحدة فارغة", "إضافة");
 }
-
+   
 function processInputToUnits(rawText) {
   if (!rawText) return [];
   let cleanText = rawText.replace(/،/g, ' ').replace(/,/g, ' ');
