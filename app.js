@@ -11,58 +11,46 @@ const $ = (sel) => document.querySelector(sel);
 const STORAGE_KEY = "army_ops_v9_complete";
 
 // القائمة الكاملة للنقاط (القديمة + الجديدة)
-// المصفوفة الجديدة بالأسماء المطلوبة فقط
-const pointsData = [
-    { id: "hotel_top", name: "نقاط وحدات اعلى الاوتيل", respect: 0 },
-    { id: "paleto_point", name: "نقاط وحدات نقطة بوليتو", respect: 0 },
-    { id: "los_point", name: "نقاط وحدات نقطة لوس", respect: 0 },
-    { id: "elec_point", name: "نقاط وحدات نقطة الكهرب", respect: 0 },
-    { id: "grapeseed_gap", name: "نقاط وحدات ثغرة قرابسيد", respect: 0 },
-    { id: "lake_gap", name: "نقاط وحدات ثغرة البحيرة", respect: 0 }
+const LANES = [
+  { id: "heli", title: "وحدات هيلي" },
+  { id: "great_ocean", title: "وحدات نقاط قريت اوشن" },
+  { id: "sandy", title: "وحدات نقاط ساندي" },
+  { id: "paleto", title: "وحدات نقاط شلال بوليتو" },
+  { id: "highway", title: "وحدات الهاي واي الشرقي" },
+  { id: "road68", title: "وحدات طريق ٦٨" },
+  { id: "general", title: "وحدات العامة" },
+  { id: "tahoe", title: "وحدات التاهو" },
+  { id: "armored", title: "وحدات المدرعه" }
 ];
 
-document.addEventListener('DOMContentLoaded', () => {
-    const container = document.getElementById('points-container');
-    const intro = document.getElementById('intro-screen');
-    const armyLogo = document.getElementById('army-logo');
+/* ---------- 1. إدارة البيانات ---------- */
+let state = loadState();
 
-    // إنشاء العناصر بناءً على الأسماء الجديدة
-    pointsData.forEach(point => {
-        const pointElement = document.createElement('div');
-        pointElement.className = 'point-card';
-        pointElement.innerHTML = `
-            <div class="point-info">
-                <h3>${point.name}</h3>
-            </div>
-            <div class="controls">
-                <button class="btn-up" onclick="updateRespect('${point.id}', 1)">+</button>
-                <span class="value" id="val-${point.id}">${point.respect}</span>
-                <button class="btn-down" onclick="updateRespect('${point.id}', -1)">-</button>
-            </div>
-        `;
-        container.appendChild(pointElement);
-    });
-
-    // منطق إخفاء الإنترو الأصلي
-    setTimeout(() => {
-        intro.style.opacity = '0';
-        armyLogo.style.opacity = '0';
-        armyLogo.style.transform = 'translate(-50%, -50%) scale(1.5)';
-        
-        setTimeout(() => {
-            intro.style.display = 'none';
-        }, 1000);
-    }, 4500); // مدة عرض الإنترو 4 ثواني ونصف كما في الأصلي
-});
-
-// وظيفة التحديث
-function updateRespect(id, amount) {
-    const element = document.getElementById(`val-${id}`);
-    let currentRespect = parseInt(element.innerText);
-    element.innerText = currentRespect + amount;
-    
-    // يمكنك إضافة TriggerServerEvent هنا إذا كنت تربطه بقاعدة بيانات
+function loadState() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw) return JSON.parse(raw);
+  
+  // الحالة الافتراضية
+  const initialState = {
+    form: { opsName: "", opsDeputy: "", leaders: "", officers: "", ncos: "", periodOfficer: "", notes: "", handoverTo: "", recvTime: "", handoverTime: "" },
+    lanes: {}
+  };
+  LANES.forEach(l => initialState.lanes[l.id] = []);
+  return initialState;
 }
+
+function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+/* ---------- 2. الواجهة والأنيميشن العسكري ---------- */
+function injectMilitaryUI() {
+  const header = $(".headerMain");
+  if (header) {
+    header.innerHTML = `
+      <div class="army-logo logo-left"></div>
+      <h1 class="main-title">تحديث مركز العمليات</h1>
+      <div class="army-logo logo-right"></div>
+    `;
+  }
 
   const style = document.createElement('style');
   style.innerHTML = `
